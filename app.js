@@ -298,8 +298,13 @@
 
   // ---------- Autosave ----------
   let saveTimer = null;
+  function syncBrowserTitle() {
+    const t = (docTitle.value || 'Document').trim();
+    document.title = t + ' — RodmanWord';
+  }
   function queueAutosave() {
     statusSaved.textContent = 'Saving…';
+    syncBrowserTitle();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
@@ -312,9 +317,18 @@
       updateCounts();
     }, 400);
   }
+  syncBrowserTitle();
+
+  function refreshEmptyState() {
+    const txt = (editor.innerText || '').replace(/​/g, '').trim();
+    const onlyBreaks = !txt && !editor.querySelector('img, table, hr');
+    editor.classList.toggle('is-empty', onlyBreaks);
+  }
 
   editor.addEventListener('input', queueAutosave);
+  editor.addEventListener('input', refreshEmptyState);
   docTitle.addEventListener('input', queueAutosave);
+  refreshEmptyState();
 
   // Tab key inserts spaces
   editor.addEventListener('keydown', (e) => {
@@ -323,6 +337,82 @@
       document.execCommand('insertHTML', false, '&emsp;');
     }
   });
+
+  // ---------- Smart paste cleanup ----------
+  editor.addEventListener('paste', (e) => {
+    const cd = e.clipboardData;
+    if (!cd) return;
+
+    // Image paste: insert as data URL
+    const items = cd.items || [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          const reader = new FileReader();
+          reader.onload = () => {
+            document.execCommand('insertImage', false, reader.result);
+            queueAutosave();
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
+      }
+    }
+
+    const html = cd.getData('text/html');
+    if (html) {
+      e.preventDefault();
+      document.execCommand('insertHTML', false, cleanPastedHtml(html));
+      queueAutosave();
+    }
+    // Plain text falls through to the browser's default behavior
+  });
+
+  function cleanPastedHtml(raw) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = raw;
+
+    // Drop everything outside <body> if present (Office/Google docs wraps)
+    const bodyMatch = raw.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    if (bodyMatch) tmp.innerHTML = bodyMatch[1];
+
+    // Strip all inline styles, classes, MS Office namespaces, comments
+    const banned = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'O:P', 'V:SHAPETYPE', 'V:SHAPE']);
+    const walk = (node) => {
+      const children = Array.from(node.childNodes);
+      for (const c of children) {
+        if (c.nodeType === 8) { c.remove(); continue; } // comment
+        if (c.nodeType !== 1) continue;
+        if (banned.has(c.tagName)) { c.remove(); continue; }
+        // Remove conditional comments / MS Office tags by namespace
+        if (/[:o]/.test(c.tagName) && c.tagName.includes(':')) {
+          while (c.firstChild) c.parentNode.insertBefore(c.firstChild, c);
+          c.remove();
+          continue;
+        }
+        // Strip dangerous + cosmetic attrs
+        Array.from(c.attributes).forEach((a) => {
+          const name = a.name.toLowerCase();
+          if (name === 'style' || name === 'class' || name === 'lang' ||
+              name === 'dir' || name.startsWith('on') ||
+              (name === 'href' && /^javascript:/i.test(a.value))) {
+            c.removeAttribute(a.name);
+          }
+        });
+        walk(c);
+      }
+    };
+    walk(tmp);
+
+    // Collapse empty paragraphs
+    tmp.querySelectorAll('p').forEach((p) => {
+      if (!p.textContent.trim() && !p.querySelector('img')) p.remove();
+    });
+
+    return tmp.innerHTML;
+  }
 
   // ---------- Keyboard shortcuts ----------
   document.addEventListener('keydown', (e) => {
@@ -370,8 +460,16 @@
   }
 
   $('#backCloseBtn').addEventListener('click', closeBackstage);
+  // Click on the empty backstage main area (not the side or content) closes it
+  backstage.addEventListener('click', (e) => {
+    if (e.target === backstage) closeBackstage();
+  });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !backstage.hidden) closeBackstage();
+    if (e.key !== 'Escape') return;
+    // Close any open modal first
+    const openM = $$('.modal').find((m) => !m.hidden);
+    if (openM) { openM.hidden = true; return; }
+    if (!backstage.hidden) closeBackstage();
   });
 
   function setBackstageView(action) {
@@ -613,60 +711,151 @@ ${editor.innerHTML}
     });
   }
 
-  // ---------- Find & Replace ----------
+  // ---------- Find & Replace (highlight all + count) ----------
   const findModal = $('#findModal');
+  const findCount = $('#findCount');
+  let findMarks = [];
+  let findCursor = -1;
+
   $('#findBtn').addEventListener('click', () => {
     saveSelection();
     openModal(findModal);
     $('#findInput').focus();
+    rerunFind();
   });
 
-  let lastFindIndex = -1;
+  function clearFindMarks() {
+    findMarks.forEach((m) => {
+      const parent = m.parentNode;
+      while (m.firstChild) parent.insertBefore(m.firstChild, m);
+      parent.removeChild(m);
+      parent.normalize();
+    });
+    findMarks = [];
+    findCursor = -1;
+  }
+
+  function rerunFind() {
+    clearFindMarks();
+    const term = $('#findInput').value;
+    if (!term) { findCount.textContent = ''; return; }
+    const matchCase = $('#matchCase').checked;
+    const re = new RegExp(
+      term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+      matchCase ? 'g' : 'gi'
+    );
+    const textNodes = [];
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => {
+        if (!n.nodeValue) return NodeFilter.FILTER_REJECT;
+        // skip text inside our existing marks (already extracted)
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    let n;
+    while ((n = walker.nextNode())) textNodes.push(n);
+
+    textNodes.forEach((node) => {
+      const text = node.nodeValue;
+      let m, last = 0;
+      const fragments = [];
+      re.lastIndex = 0;
+      while ((m = re.exec(text)) !== null) {
+        if (m.index > last) {
+          fragments.push(document.createTextNode(text.slice(last, m.index)));
+        }
+        const mark = document.createElement('span');
+        mark.className = 'rwd-find-mark';
+        mark.textContent = m[0];
+        fragments.push(mark);
+        findMarks.push(mark);
+        last = m.index + m[0].length;
+        if (m[0].length === 0) re.lastIndex++;
+      }
+      if (!fragments.length) return;
+      if (last < text.length) {
+        fragments.push(document.createTextNode(text.slice(last)));
+      }
+      const parent = node.parentNode;
+      fragments.forEach((f) => parent.insertBefore(f, node));
+      parent.removeChild(node);
+    });
+
+    if (findMarks.length) {
+      findCursor = 0;
+      focusFindMark(0);
+    }
+    findCount.textContent = findMarks.length
+      ? findMarks.length + ' matches'
+      : 'No matches';
+  }
+
+  function focusFindMark(i) {
+    findMarks.forEach((m, idx) => {
+      m.classList.toggle('current', idx === i);
+    });
+    const m = findMarks[i];
+    if (!m) return;
+    m.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    findCount.textContent =
+      (i + 1) + ' of ' + findMarks.length + ' matches';
+  }
+
+  $('#findInput').addEventListener('input', () => {
+    clearTimeout(window.__rwdFindT);
+    window.__rwdFindT = setTimeout(rerunFind, 200);
+  });
+  $('#matchCase').addEventListener('change', rerunFind);
 
   $('#findNextBtn').addEventListener('click', () => {
-    const term = $('#findInput').value;
-    if (!term) return;
-    const matchCase = $('#matchCase').checked;
-    const haystack = matchCase ? editor.innerText : editor.innerText.toLowerCase();
-    const needle = matchCase ? term : term.toLowerCase();
-    let from = lastFindIndex + 1;
-    let idx = haystack.indexOf(needle, from);
-    if (idx === -1) idx = haystack.indexOf(needle, 0);
-    if (idx === -1) {
-      alert('Not found');
-      lastFindIndex = -1;
-      return;
-    }
-    lastFindIndex = idx;
-    selectTextAt(idx, idx + needle.length);
+    if (!findMarks.length) return rerunFind();
+    findCursor = (findCursor + 1) % findMarks.length;
+    focusFindMark(findCursor);
+  });
+  $('#findPrevBtn').addEventListener('click', () => {
+    if (!findMarks.length) return rerunFind();
+    findCursor = (findCursor - 1 + findMarks.length) % findMarks.length;
+    focusFindMark(findCursor);
   });
 
   $('#replaceOneBtn').addEventListener('click', () => {
-    const sel = window.getSelection();
-    const find = $('#findInput').value;
+    if (!findMarks.length) return;
     const repl = $('#replaceInput').value;
-    if (!find) return;
-    if (sel && sel.toString() === find) {
-      restoreSelection();
-      document.execCommand('insertText', false, repl);
-      queueAutosave();
-    }
-    $('#findNextBtn').click();
+    const m = findMarks[findCursor];
+    if (!m) return;
+    const txt = document.createTextNode(repl);
+    m.parentNode.replaceChild(txt, m);
+    findMarks.splice(findCursor, 1);
+    if (findCursor >= findMarks.length) findCursor = 0;
+    if (findMarks.length) focusFindMark(findCursor);
+    else findCount.textContent = 'All replaced';
+    queueAutosave();
   });
 
   $('#replaceAllBtn').addEventListener('click', () => {
-    const find = $('#findInput').value;
+    if (!findMarks.length) rerunFind();
+    if (!findMarks.length) return;
     const repl = $('#replaceInput').value;
-    if (!find) return;
-    const matchCase = $('#matchCase').checked;
-    const flags = matchCase ? 'g' : 'gi';
-    const re = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
-    walkTextNodes(editor, (node) => {
-      if (re.test(node.nodeValue)) {
-        node.nodeValue = node.nodeValue.replace(re, repl);
-      }
+    const count = findMarks.length;
+    findMarks.forEach((m) => {
+      const txt = document.createTextNode(repl);
+      m.parentNode.replaceChild(txt, m);
     });
+    findMarks = [];
+    findCursor = -1;
+    findCount.textContent = 'Replaced ' + count + ' matches';
     queueAutosave();
+  });
+
+  // Clear find highlights when the dialog closes
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !findModal.hidden) clearFindMarks();
+  });
+  findModal.addEventListener('click', (e) => {
+    if (e.target === findModal) clearFindMarks();
+  });
+  $$('#findModal [data-close-modal]').forEach((b) => {
+    b.addEventListener('click', clearFindMarks);
   });
 
   function walkTextNodes(root, fn) {
@@ -918,16 +1107,160 @@ ${editor.innerHTML}
   }
 
   // ============================================================
+  // FEATURE: Table mini-toolbar
+  // ============================================================
+  const tableBar = $('#tableBar');
+
+  function positionFloatBar(bar, anchor) {
+    const r = anchor.getBoundingClientRect();
+    // viewport-relative because float-bar is position:fixed
+    const top = r.top - bar.offsetHeight - 6;
+    bar.style.left = Math.max(8, r.left) + 'px';
+    bar.style.top = (top < 8 ? r.bottom + 6 : top) + 'px';
+  }
+
+  function activeCell() {
+    const sel = window.getSelection();
+    if (!sel || !sel.anchorNode) return null;
+    let n = sel.anchorNode;
+    if (n.nodeType !== 1) n = n.parentElement;
+    return n ? n.closest('td, th') : null;
+  }
+
+  function showTableBar(cell) {
+    tableBar.hidden = false;
+    positionFloatBar(tableBar, cell);
+  }
+
+  function hideTableBar() { tableBar.hidden = true; }
+
+  editor.addEventListener('click', () => {
+    const c = activeCell();
+    if (c) showTableBar(c); else hideTableBar();
+  });
+  editor.addEventListener('keyup', () => {
+    const c = activeCell();
+    if (c) showTableBar(c);
+  });
+  document.addEventListener('scroll', () => {
+    if (!tableBar.hidden) {
+      const c = activeCell();
+      if (c) positionFloatBar(tableBar, c);
+    }
+  }, true);
+
+  tableBar.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const cell = activeCell();
+    if (!cell) return;
+    const row = cell.parentElement;
+    const table = cell.closest('table');
+    const colIdx = Array.from(row.children).indexOf(cell);
+
+    switch (btn.dataset.tact) {
+      case 'row-above':
+      case 'row-below': {
+        const newRow = row.cloneNode(false);
+        Array.from(row.children).forEach(() => {
+          const c = document.createElement(row.firstElementChild.tagName);
+          c.innerHTML = '&nbsp;';
+          newRow.appendChild(c);
+        });
+        row.parentNode.insertBefore(
+          newRow,
+          btn.dataset.tact === 'row-above' ? row : row.nextSibling
+        );
+        break;
+      }
+      case 'col-left':
+      case 'col-right': {
+        const offset = btn.dataset.tact === 'col-left' ? 0 : 1;
+        Array.from(table.rows).forEach((r) => {
+          const ref = r.children[colIdx + offset] || null;
+          const c = document.createElement(r.children[0].tagName);
+          c.innerHTML = '&nbsp;';
+          r.insertBefore(c, ref);
+        });
+        break;
+      }
+      case 'del-row':
+        if (table.rows.length > 1) row.remove();
+        break;
+      case 'del-col':
+        if (row.children.length > 1) {
+          Array.from(table.rows).forEach((r) => {
+            if (r.children[colIdx]) r.children[colIdx].remove();
+          });
+        }
+        break;
+      case 'del-table':
+        if (confirm('Delete the entire table?')) {
+          table.remove();
+          hideTableBar();
+        }
+        break;
+    }
+    queueAutosave();
+  });
+
+  // ============================================================
+  // FEATURE: Image mini-toolbar
+  // ============================================================
+  const imageBar = $('#imageBar');
+  let selectedImg = null;
+
+  editor.addEventListener('click', (e) => {
+    const img = e.target.closest && e.target.closest('img');
+    if (!img) {
+      if (selectedImg) {
+        selectedImg.classList.remove('rwd-img-selected');
+        selectedImg = null;
+      }
+      imageBar.hidden = true;
+      return;
+    }
+    if (selectedImg && selectedImg !== img) {
+      selectedImg.classList.remove('rwd-img-selected');
+    }
+    selectedImg = img;
+    img.classList.add('rwd-img-selected');
+    imageBar.hidden = false;
+    positionFloatBar(imageBar, img);
+  });
+
+  imageBar.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || !selectedImg) return;
+    const a = btn.dataset.iact;
+    if (a === 'small' || a === 'medium' || a === 'full') {
+      selectedImg.classList.remove('rwd-img-small', 'rwd-img-medium', 'rwd-img-full');
+      selectedImg.classList.add('rwd-img-' + a);
+    } else if (a === 'alt') {
+      const v = prompt('Alt text:', selectedImg.alt || '');
+      if (v !== null) selectedImg.alt = v;
+    } else if (a === 'delete') {
+      selectedImg.remove();
+      selectedImg = null;
+      imageBar.hidden = true;
+    }
+    queueAutosave();
+  });
+
+  // ============================================================
   // FEATURE: Document outline / navigation pane
   // ============================================================
   const outlinePane = $('#outlinePane');
   const outlineList = $('#outlineList');
   const outlineToggle = $('#outlineToggle');
 
+  let outlineEntries = [];
+
   function rebuildOutline() {
     if (outlinePane.hidden) return;
     const headings = editor.querySelectorAll('h1, h2, h3, h4');
     outlineList.innerHTML = '';
+    outlineEntries = [];
     if (!headings.length) {
       const li = document.createElement('li');
       li.className = 'empty';
@@ -950,8 +1283,31 @@ ${editor.innerHTML}
         sel.addRange(r);
       });
       outlineList.appendChild(li);
+      outlineEntries.push({ heading: h, li });
     });
   }
+
+  function syncOutlineCurrent() {
+    if (outlinePane.hidden || !outlineEntries.length) return;
+    const ws = document.querySelector('.workspace-main');
+    if (!ws) return;
+    const wsTop = ws.getBoundingClientRect().top;
+    let activeIdx = 0;
+    for (let i = 0; i < outlineEntries.length; i++) {
+      const top = outlineEntries[i].heading.getBoundingClientRect().top;
+      if (top - wsTop <= 80) activeIdx = i;
+      else break;
+    }
+    outlineEntries.forEach((e, i) => {
+      e.li.classList.toggle('current', i === activeIdx);
+    });
+  }
+
+  // Throttled scroll sync
+  document.querySelector('.workspace-main')?.addEventListener('scroll', () => {
+    clearTimeout(window.__rwdScrollT);
+    window.__rwdScrollT = setTimeout(syncOutlineCurrent, 80);
+  });
 
   outlineToggle.addEventListener('change', () => {
     outlinePane.hidden = !outlineToggle.checked;
@@ -1445,33 +1801,72 @@ ${editor.innerHTML}
   const synth = window.speechSynthesis;
   let ttsSpeaking = false;
 
+  const ttsBar = $('#ttsBar');
+  const ttsVoiceSel = $('#ttsVoice');
+  const ttsRate = $('#ttsRate');
+  const ttsRateLabel = $('#ttsRateLabel');
+  const ttsPauseBtn = $('#ttsPauseBtn');
+  const ttsStopBtn = $('#ttsStopBtn');
+
   if (!synth) {
     readAloudBtn.disabled = true;
     readAloudBtn.title = 'Text-to-speech not supported';
     readAloudBtn.style.opacity = 0.5;
   } else {
-    readAloudBtn.addEventListener('click', () => {
-      if (ttsSpeaking) {
-        synth.cancel();
-        return;
-      }
+    function loadVoices() {
+      const voices = synth.getVoices();
+      ttsVoiceSel.innerHTML = '';
+      voices.forEach((v, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = v.name + ' (' + v.lang + ')' + (v.default ? ' ★' : '');
+        if (v.default) opt.selected = true;
+        ttsVoiceSel.appendChild(opt);
+      });
+    }
+    loadVoices();
+    if ('onvoiceschanged' in synth) synth.onvoiceschanged = loadVoices;
+
+    ttsRate.addEventListener('input', () => {
+      ttsRateLabel.textContent = parseFloat(ttsRate.value).toFixed(1) + '×';
+    });
+
+    function startTts() {
       const sel = window.getSelection().toString();
       const text = sel || editor.innerText;
-      if (!text.trim()) return;
+      if (!text.trim()) { flashStatus('Nothing to read'); return; }
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = navigator.language || 'en-US';
+      const voices = synth.getVoices();
+      const idx = parseInt(ttsVoiceSel.value, 10);
+      if (!isNaN(idx) && voices[idx]) u.voice = voices[idx];
+      u.rate = parseFloat(ttsRate.value) || 1;
+      u.lang = u.voice ? u.voice.lang : (navigator.language || 'en-US');
       u.onstart = () => {
         ttsSpeaking = true;
         readAloudBtn.classList.add('armed');
         ttsIndicator.hidden = false;
+        ttsBar.hidden = false;
+        ttsPauseBtn.textContent = 'Pause';
       };
       u.onend = u.onerror = () => {
         ttsSpeaking = false;
         readAloudBtn.classList.remove('armed');
         ttsIndicator.hidden = true;
+        ttsBar.hidden = true;
       };
       synth.speak(u);
+    }
+
+    readAloudBtn.addEventListener('click', () => {
+      if (ttsSpeaking) { synth.cancel(); return; }
+      startTts();
     });
+
+    ttsPauseBtn.addEventListener('click', () => {
+      if (synth.paused) { synth.resume(); ttsPauseBtn.textContent = 'Pause'; }
+      else { synth.pause(); ttsPauseBtn.textContent = 'Resume'; }
+    });
+    ttsStopBtn.addEventListener('click', () => synth.cancel());
   }
 
   // ============================================================
@@ -1777,25 +2172,57 @@ ${editor.innerHTML}
   // FEATURE: Comments / sticky notes
   // ============================================================
   const commentModal = $('#commentModal');
+  const commentModalTitle = $('#commentModalTitle');
+  const deleteCommentBtn = $('#deleteCommentBtn');
   let pendingCommentRange = null;
+  let editingCommentSpan = null;
 
-  $('#commentBtn').addEventListener('click', () => {
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !editor.contains(sel.anchorNode)) {
-      alert('Select some text first to attach a comment.');
-      return;
-    }
-    pendingCommentRange = sel.getRangeAt(0).cloneRange();
+  function openCommentModalForNew() {
+    editingCommentSpan = null;
+    commentModalTitle.textContent = 'Add comment';
+    deleteCommentBtn.hidden = true;
     $('#commentSelectionPreview').textContent =
       '“' + pendingCommentRange.toString().slice(0, 80) +
       (pendingCommentRange.toString().length > 80 ? '…' : '') + '”';
     $('#commentText').value = '';
     openModal(commentModal);
     setTimeout(() => $('#commentText').focus(), 50);
+  }
+
+  function openCommentModalForEdit(span) {
+    editingCommentSpan = span;
+    pendingCommentRange = null;
+    commentModalTitle.textContent = 'Edit comment';
+    deleteCommentBtn.hidden = false;
+    $('#commentSelectionPreview').textContent =
+      '“' + span.textContent.slice(0, 80) + (span.textContent.length > 80 ? '…' : '') + '”';
+    $('#commentText').value = span.dataset.comment || '';
+    openModal(commentModal);
+    setTimeout(() => $('#commentText').focus(), 50);
+  }
+
+  $('#commentBtn').addEventListener('click', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !editor.contains(sel.anchorNode)) {
+      flashStatus('Select text first');
+      return;
+    }
+    pendingCommentRange = sel.getRangeAt(0).cloneRange();
+    openCommentModalForNew();
   });
 
   $('#saveCommentBtn').addEventListener('click', () => {
     const text = $('#commentText').value.trim();
+    if (editingCommentSpan) {
+      if (text) {
+        editingCommentSpan.dataset.comment = text;
+        editingCommentSpan.title = text;
+        queueAutosave();
+      }
+      editingCommentSpan = null;
+      closeModal(commentModal);
+      return;
+    }
     if (!text || !pendingCommentRange) {
       closeModal(commentModal);
       return;
@@ -1813,29 +2240,23 @@ ${editor.innerHTML}
     queueAutosave();
   });
 
-  // Click a comment to view / edit / delete
+  deleteCommentBtn.addEventListener('click', () => {
+    if (!editingCommentSpan) return;
+    const span = editingCommentSpan;
+    const parent = span.parentNode;
+    while (span.firstChild) parent.insertBefore(span.firstChild, span);
+    parent.removeChild(span);
+    editingCommentSpan = null;
+    closeModal(commentModal);
+    queueAutosave();
+  });
+
+  // Click a comment to edit it via the modal
   editor.addEventListener('click', (e) => {
     const span = e.target.closest && e.target.closest('.rwd-comment');
     if (!span) return;
-    const action = prompt(
-      'Comment: ' + span.dataset.comment +
-      '\n\nType "edit" to edit, "delete" to remove, or leave blank to close.',
-      ''
-    );
-    if (action === null) return;
-    if (action.toLowerCase() === 'delete') {
-      const parent = span.parentNode;
-      while (span.firstChild) parent.insertBefore(span.firstChild, span);
-      parent.removeChild(span);
-      queueAutosave();
-    } else if (action.toLowerCase() === 'edit') {
-      const next = prompt('Edit comment:', span.dataset.comment);
-      if (next !== null && next.trim()) {
-        span.dataset.comment = next.trim();
-        span.title = next.trim();
-        queueAutosave();
-      }
-    }
+    e.preventDefault();
+    openCommentModalForEdit(span);
   });
 
   // ============================================================

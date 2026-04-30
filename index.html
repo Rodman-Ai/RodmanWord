@@ -319,6 +319,7 @@
             contenteditable="true"
             spellcheck="true"
             aria-label="Document editor"
+            data-placeholder="Start typing your document here…"
           ><h1>Welcome to RodmanWord</h1>
 <p>RodmanWord is a lightweight Microsoft Word–style editor that runs entirely in your browser. Start typing to replace this text, or use the <b>Home</b> tab above to format your content.</p>
 <p>Tips:</p>
@@ -363,8 +364,10 @@
         <label>Find <input id="findInput" type="text" /></label>
         <label>Replace <input id="replaceInput" type="text" /></label>
         <label class="row"><input type="checkbox" id="matchCase" /> Match case</label>
+        <p id="findCount" class="muted"></p>
       </div>
       <footer>
+        <button class="btn" id="findPrevBtn">Previous</button>
         <button class="btn" id="findNextBtn">Find next</button>
         <button class="btn" id="replaceOneBtn">Replace</button>
         <button class="btn primary" id="replaceAllBtn">Replace all</button>
@@ -527,7 +530,7 @@
   <!-- Comment dialog -->
   <div class="modal" id="commentModal" hidden>
     <div class="modal-card">
-      <header><h3>Add comment</h3>
+      <header><h3 id="commentModalTitle">Add comment</h3>
         <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
       </header>
       <div class="modal-body">
@@ -535,10 +538,42 @@
         <label>Comment <textarea id="commentText" rows="4"></textarea></label>
       </div>
       <footer>
+        <button class="btn" id="deleteCommentBtn" hidden>Delete</button>
         <button class="btn" data-close-modal>Cancel</button>
-        <button class="btn primary" id="saveCommentBtn">Add</button>
+        <button class="btn primary" id="saveCommentBtn">Save</button>
       </footer>
     </div>
+  </div>
+
+  <!-- Table mini-toolbar -->
+  <div id="tableBar" class="float-bar" hidden>
+    <button data-tact="row-above" title="Insert row above">+ Row ↑</button>
+    <button data-tact="row-below" title="Insert row below">+ Row ↓</button>
+    <button data-tact="col-left" title="Insert column left">+ Col ←</button>
+    <button data-tact="col-right" title="Insert column right">+ Col →</button>
+    <button data-tact="del-row" title="Delete row">– Row</button>
+    <button data-tact="del-col" title="Delete column">– Col</button>
+    <button data-tact="del-table" title="Delete table">🗑 Table</button>
+  </div>
+
+  <!-- Image mini-toolbar -->
+  <div id="imageBar" class="float-bar" hidden>
+    <button data-iact="small">Small</button>
+    <button data-iact="medium">Medium</button>
+    <button data-iact="full">Full</button>
+    <button data-iact="alt">Alt text…</button>
+    <button data-iact="delete">🗑</button>
+  </div>
+
+  <!-- Read-aloud controls (floating bar shown while speaking) -->
+  <div id="ttsBar" class="tts-bar" hidden>
+    <select id="ttsVoice" aria-label="Voice"></select>
+    <label>Speed
+      <input type="range" id="ttsRate" min="0.5" max="2" step="0.1" value="1" />
+      <span id="ttsRateLabel">1.0×</span>
+    </label>
+    <button class="btn" id="ttsPauseBtn">Pause</button>
+    <button class="btn" id="ttsStopBtn">Stop</button>
   </div>
 
   <!-- Reading-mode bar -->
