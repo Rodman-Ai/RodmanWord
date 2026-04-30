@@ -110,18 +110,131 @@
     queueAutosave();
   });
 
-  // Color pickers
-  $('#foreColor').addEventListener('input', (e) => {
-    exec('foreColor', e.target.value);
-  });
-  $('#hiliteColor').addEventListener('input', (e) => {
-    if (!document.execCommand('hiliteColor', false, e.target.value)) {
-      exec('backColor', e.target.value);
-    } else {
-      saveSelection();
-      queueAutosave();
+  // ============================================================
+  // IMPROVEMENT: Color swatches palette + recent colors
+  // ============================================================
+  const SWATCHES = [
+    '#000000','#444444','#666666','#999999','#CCCCCC','#EEEEEE','#FFFFFF','#FFFFFF','#FFFFFF','#FFFFFF',
+    '#C00000','#E97132','#FFC000','#70AD47','#4472C4','#7030A0','#B83280','#0F6FC6','#222F3E','#E03E2D',
+    '#F2C2C2','#FAD9C0','#FFE9B0','#D2E5C6','#CCD9EE','#D8C7E0','#F2D2DE','#BDDBEF','#A8B2BE','#F2C0BC',
+  ];
+  const STORE_RECENT_COLOR = 'rodmanword:recentColors';
+  let recentColors = [];
+  try { recentColors = JSON.parse(localStorage.getItem(STORE_RECENT_COLOR) || '[]'); } catch {}
+
+  function rememberColor(hex) {
+    recentColors = [hex, ...recentColors.filter((c) => c !== hex)].slice(0, 10);
+    try { localStorage.setItem(STORE_RECENT_COLOR, JSON.stringify(recentColors)); } catch {}
+  }
+
+  let activeColorPopup = null;
+  function openColorPopup(anchor, applyFn) {
+    if (activeColorPopup) activeColorPopup.remove();
+    const pop = document.createElement('div');
+    pop.className = 'color-popup';
+    SWATCHES.forEach((c) => {
+      const s = document.createElement('div');
+      s.className = 'swatch';
+      s.style.background = c;
+      s.title = c;
+      s.addEventListener('mousedown', (ev) => {
+        ev.preventDefault();
+        applyFn(c);
+        rememberColor(c);
+        pop.remove();
+        activeColorPopup = null;
+      });
+      pop.appendChild(s);
+    });
+    if (recentColors.length) {
+      const hr = document.createElement('hr');
+      pop.appendChild(hr);
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.textContent = 'Recent';
+      pop.appendChild(row);
+      recentColors.forEach((c) => {
+        const s = document.createElement('div');
+        s.className = 'swatch';
+        s.style.background = c;
+        s.title = c;
+        s.addEventListener('mousedown', (ev) => {
+          ev.preventDefault();
+          applyFn(c);
+          rememberColor(c);
+          pop.remove();
+          activeColorPopup = null;
+        });
+        pop.appendChild(s);
+      });
     }
-  });
+    const more = document.createElement('button');
+    more.className = 'pick-btn';
+    more.type = 'button';
+    more.textContent = 'More colors…';
+    more.addEventListener('mousedown', (ev) => {
+      ev.preventDefault();
+      const inp = document.createElement('input');
+      inp.type = 'color';
+      inp.style.position = 'fixed';
+      inp.style.opacity = '0';
+      document.body.appendChild(inp);
+      inp.addEventListener('input', () => {
+        applyFn(inp.value);
+        rememberColor(inp.value);
+        inp.remove();
+      });
+      inp.addEventListener('change', () => inp.remove());
+      inp.click();
+      pop.remove();
+      activeColorPopup = null;
+    });
+    pop.appendChild(more);
+    const r = anchor.getBoundingClientRect();
+    pop.style.left = r.left + 'px';
+    pop.style.top = (r.bottom + 4) + 'px';
+    document.body.appendChild(pop);
+    activeColorPopup = pop;
+    setTimeout(() => {
+      document.addEventListener('mousedown', (ev) => {
+        if (!pop.contains(ev.target)) { pop.remove(); activeColorPopup = null; }
+      }, { once: true });
+    }, 0);
+  }
+
+  // Replace native color inputs with swatch popups
+  const foreColorBtn = document.querySelector('label.color[title="Font color"]');
+  const hiliteColorBtn = document.querySelector('label.color[title="Highlight color"]');
+  if (foreColorBtn) {
+    const inp = foreColorBtn.querySelector('input');
+    if (inp) inp.remove();
+    foreColorBtn.style.cursor = 'pointer';
+    foreColorBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      saveSelection();
+    });
+    foreColorBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      openColorPopup(foreColorBtn, (c) => exec('foreColor', c));
+    });
+  }
+  if (hiliteColorBtn) {
+    const inp = hiliteColorBtn.querySelector('input');
+    if (inp) inp.remove();
+    hiliteColorBtn.style.cursor = 'pointer';
+    hiliteColorBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      saveSelection();
+    });
+    hiliteColorBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      openColorPopup(hiliteColorBtn, (c) => {
+        if (!document.execCommand('hiliteColor', false, c)) exec('backColor', c);
+        saveSelection();
+        queueAutosave();
+      });
+    });
+  }
 
   // Block style
   $('#blockStyle').addEventListener('change', (e) => {
@@ -145,11 +258,7 @@
     e.target.value = '';
   });
 
-  $('#insertLinkBtn').addEventListener('click', () => {
-    saveSelection();
-    const url = prompt('Enter URL:', 'https://');
-    if (url) exec('createLink', url);
-  });
+  $('#insertLinkBtn').addEventListener('click', openLinkModal);
 
   $('#insertDateBtn').addEventListener('click', () => {
     const today = new Date().toLocaleDateString(undefined, {
@@ -197,29 +306,45 @@
 
   // Symbol modal
   const symbolModal = $('#symbolModal');
-  const SYMBOLS = [
-    '©','®','™','§','¶','†','‡','•','…','‰',
-    '€','£','¥','¢','$','¤','₹','₽','₩','₿',
-    '°','±','×','÷','≠','≈','≤','≥','∞','√',
-    '∑','∏','∫','∂','∆','π','µ','Ω','α','β',
-    'γ','δ','ε','θ','λ','σ','φ','ψ','ω','Φ',
-    '←','→','↑','↓','↔','⇐','⇒','⇑','⇓','⇔',
-    '★','☆','♥','♦','♣','♠','♪','♫','☀','☁',
-    '☂','☃','☎','✓','✗','✉','✿','❀','❤','☮'
-  ];
+  const SYMBOL_CATS = {
+    'General': ['©','®','™','§','¶','†','‡','•','…','‰','°','′','″','‴','¦','¬','¤'],
+    'Currency': ['€','£','¥','¢','$','₹','₽','₩','₿','₪','₡','₦','₱','₫','₭','₮','₲','₴'],
+    'Math': ['±','×','÷','≠','≈','≤','≥','∞','√','∑','∏','∫','∂','∆','∇','∈','∉','∋','∝','∠','⊥','∥','∧','∨','⊕','⊗','∴','∵'],
+    'Greek': ['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','µ','ν','ξ','ο','π','ρ','σ','τ','υ','φ','χ','ψ','ω','Α','Β','Γ','Δ','Ε','Ζ','Η','Θ','Λ','Π','Σ','Φ','Ψ','Ω'],
+    'Arrows': ['←','→','↑','↓','↔','↕','⇐','⇒','⇑','⇓','⇔','↩','↪','↻','↺','⤴','⤵','⤶','⤷'],
+    'Shapes': ['★','☆','♥','♦','♣','♠','♪','♫','♩','♬','☀','☁','☂','☃','☎','✓','✗','✉','✿','❀','❤','☮','☯','☘','✪','✦','✧','◆','◇','■','□','●','○','▲','△','▼','▽'],
+  };
   const symbolGrid = $('#symbolGrid');
-  SYMBOLS.forEach((s) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = s;
-    b.addEventListener('click', () => {
-      restoreSelection();
-      document.execCommand('insertText', false, s);
-      closeModal(symbolModal);
-      queueAutosave();
+
+  function renderSymbolCategory(cat) {
+    symbolGrid.innerHTML = '';
+    // Cat tab strip on top
+    const tabs = document.createElement('div');
+    tabs.style.cssText = 'grid-column:1/-1;display:flex;gap:4px;flex-wrap:wrap;padding-bottom:6px;border-bottom:1px solid var(--ribbon-border);margin-bottom:6px';
+    Object.keys(SYMBOL_CATS).forEach((c) => {
+      const t = document.createElement('button');
+      t.type = 'button';
+      t.textContent = c;
+      t.style.cssText = 'background:' + (c === cat ? 'var(--active)' : 'transparent') +
+        ';border:1px solid var(--ribbon-border);border-radius:3px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--text)';
+      t.addEventListener('click', () => renderSymbolCategory(c));
+      tabs.appendChild(t);
     });
-    symbolGrid.appendChild(b);
-  });
+    symbolGrid.appendChild(tabs);
+    SYMBOL_CATS[cat].forEach((s) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = s;
+      b.addEventListener('click', () => {
+        restoreSelection();
+        document.execCommand('insertText', false, s);
+        closeModal(symbolModal);
+        queueAutosave();
+      });
+      symbolGrid.appendChild(b);
+    });
+  }
+  renderSymbolCategory(Object.keys(SYMBOL_CATS)[0]);
   $('#insertSymbolBtn').addEventListener('click', () => {
     saveSelection();
     openModal(symbolModal);
@@ -311,6 +436,7 @@
         localStorage.setItem(STORE_KEY, editor.innerHTML);
         localStorage.setItem(STORE_TITLE, docTitle.value);
         statusSaved.textContent = 'Saved';
+        if (typeof markClean === 'function') markClean();
       } catch {
         statusSaved.textContent = 'Save failed (storage full)';
       }
@@ -325,10 +451,94 @@
     editor.classList.toggle('is-empty', onlyBreaks);
   }
 
+  // ---------- Dirty indicator + last-edit timestamp ----------
+  const dirtyDot = $('#dirtyDot');
+  const statusCursor = $('#statusCursor');
+  const statusSize = $('#statusSize');
+  let isDirty = false;
+  let lastEditAt = Date.now();
+
+  function markDirty() {
+    isDirty = true;
+    dirtyDot.hidden = false;
+    lastEditAt = Date.now();
+  }
+  function markClean() {
+    isDirty = false;
+    dirtyDot.hidden = true;
+  }
+
   editor.addEventListener('input', queueAutosave);
   editor.addEventListener('input', refreshEmptyState);
+  editor.addEventListener('input', markDirty);
   docTitle.addEventListener('input', queueAutosave);
+  docTitle.addEventListener('input', markDirty);
   refreshEmptyState();
+
+  // beforeunload warning
+  window.addEventListener('beforeunload', (e) => {
+    if (!isDirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  // ---------- Cursor position (line:col) ----------
+  function updateCursorPos() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !editor.contains(sel.anchorNode)) return;
+    const range = sel.getRangeAt(0);
+    // Compute line/col by scanning text up to cursor
+    const before = document.createRange();
+    before.setStart(editor, 0);
+    before.setEnd(range.endContainer, range.endOffset);
+    const text = before.toString();
+    const lines = text.split(/\n/);
+    const ln = lines.length;
+    const col = lines[lines.length - 1].length + 1;
+    statusCursor.textContent = 'Ln ' + ln + ', Col ' + col;
+  }
+  document.addEventListener('selectionchange', () => {
+    if (document.activeElement === editor) updateCursorPos();
+  });
+
+  // ---------- Document size in KB ----------
+  function updateDocSize() {
+    const html = editor.innerHTML || '';
+    const bytes = new Blob([html]).size;
+    statusSize.textContent = bytes < 1024
+      ? bytes + ' B'
+      : (bytes / 1024).toFixed(1) + ' KB';
+  }
+  setInterval(updateDocSize, 2000);
+  updateDocSize();
+
+  // ---------- Last edit relative time ----------
+  function relativeTime(ms) {
+    const s = Math.round(ms / 1000);
+    if (s < 5) return 'just now';
+    if (s < 60) return s + ' s ago';
+    const m = Math.round(s / 60);
+    if (m < 60) return m + ' min ago';
+    const h = Math.round(m / 60);
+    if (h < 24) return h + ' h ago';
+    return new Date(Date.now() - ms).toLocaleString();
+  }
+  setInterval(() => {
+    if (isDirty) return;
+    const t = statusSaved.textContent;
+    if (t && t.indexOf('Saved') === 0) {
+      statusSaved.textContent = 'Saved ' + relativeTime(Date.now() - lastEditAt);
+    }
+  }, 5000);
+
+  // ---------- Selection-aware word count ----------
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !editor.contains(sel.anchorNode)) return;
+    const text = sel.toString();
+    const words = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
+    statusWords.textContent = words + ' selected';
+  });
 
   // Tab key inserts spaces
   editor.addEventListener('keydown', (e) => {
@@ -419,11 +629,13 @@
     const ctrl = e.ctrlKey || e.metaKey;
     if (!ctrl) return;
     const key = e.key.toLowerCase();
+    const shift = e.shiftKey;
     if (key === 's') {
       e.preventDefault();
       saveDocument();
     } else if (key === 'p') {
       e.preventDefault();
+      preparePrint();
       window.print();
     } else if (key === 'f') {
       e.preventDefault();
@@ -435,8 +647,49 @@
     } else if (key === 'n') {
       e.preventDefault();
       newDocument();
+    } else if (key === 'k') {
+      e.preventDefault();
+      openLinkModal();
+    } else if (key === 'l' && !shift) {
+      e.preventDefault();
+      exec('justifyLeft');
+    } else if (key === 'e') {
+      e.preventDefault();
+      exec('justifyCenter');
+    } else if (key === 'r') {
+      e.preventDefault();
+      exec('justifyRight');
+    } else if (key === 'j') {
+      e.preventDefault();
+      exec('justifyFull');
+    } else if (key === 'l' && shift) {
+      e.preventDefault();
+      exec('removeFormat');
+      toast('Formatting cleared');
+    } else if (key === 'enter') {
+      e.preventDefault();
+      restoreSelection();
+      document.execCommand('insertHTML', false,
+        '<hr class="page-break" contenteditable="false"/><p><br/></p>');
+      queueAutosave();
+    } else if (shift && key === 'h') {
+      e.preventDefault();
+      cycleHeading();
     }
   });
+
+  function cycleHeading() {
+    const sel = window.getSelection();
+    if (!sel || !sel.anchorNode) return;
+    let n = sel.anchorNode;
+    if (n.nodeType !== 1) n = n.parentElement;
+    const block = n.closest && n.closest('h1,h2,h3,h4,p,blockquote,pre,li');
+    const tag = block ? block.tagName : 'P';
+    const order = ['P', 'H1', 'H2', 'H3', 'H4'];
+    const idx = order.indexOf(tag);
+    const next = order[(idx + 1) % order.length];
+    exec('formatBlock', next);
+  }
 
   // ---------- Backstage / File menu ----------
   const backstage = $('#backstage');
@@ -520,18 +773,14 @@
         break;
       case 'print':
         closeBackstage();
-        setTimeout(() => window.print(), 100);
+        setTimeout(() => { preparePrint(); window.print(); }, 100);
         break;
       case 'recent':
         renderRecent();
         break;
       case 'about':
-        backstageTitle.textContent = 'About RodmanWord';
-        backstageContent.innerHTML = `
-          <p><b>RodmanWord</b> is an open-source Microsoft Word–style editor that runs entirely in your browser.</p>
-          <p>It works on desktop and mobile, saves to local storage automatically, and can export documents as <code>.rwd</code>, HTML, or plain text. Use Print → Save as PDF for PDF export.</p>
-          <p>No data leaves your device.</p>
-        `;
+        closeBackstage();
+        openModal($('#aboutModal'));
         break;
       default:
         backstageTitle.textContent = 'File';
@@ -544,8 +793,11 @@
   });
 
   // ---------- Document operations ----------
-  function newDocument() {
-    if (!confirm('Start a new blank document? Unsaved changes will be lost.')) return;
+  async function newDocument() {
+    if (isDirty &&
+        !(await confirmDialog('Start a new blank document? Unsaved changes will be lost.', 'New document'))) {
+      return;
+    }
     editor.innerHTML = '<h1>Untitled document</h1><p><br/></p>';
     docTitle.value = 'Document';
     queueAutosave();
@@ -706,7 +958,10 @@ ${editor.innerHTML}
     list.forEach((item) => {
       const li = document.createElement('li');
       const dt = new Date(item.at);
-      li.innerHTML = `<button>📄 <b>${escapeHtml(item.title)}</b><br/><small>${dt.toLocaleString()}</small></button>`;
+      const sizeStr = item.size != null
+        ? (item.size < 1024 ? item.size + ' B' : (item.size / 1024).toFixed(1) + ' KB')
+        : '';
+      li.innerHTML = `<button>📄 <b>${escapeHtml(item.title)}</b><br/><small>${dt.toLocaleString()}${sizeStr ? ' • ' + sizeStr : ''}</small></button>`;
       ul.appendChild(li);
     });
   }
@@ -963,6 +1218,164 @@ ${editor.innerHTML}
   // Outline rebuild after init (function defined later in feature block)
   setTimeout(() => { try { rebuildOutline(); } catch {} }, 0);
 
+  // ============================================================
+  // IMPROVEMENT: Undo/redo button state
+  // ============================================================
+  function refreshUndoRedoState() {
+    try {
+      const u = document.querySelector('[data-cmd="undo"]');
+      const r = document.querySelector('[data-cmd="redo"]');
+      if (!u || !r) return;
+      const canU = document.queryCommandEnabled && document.queryCommandEnabled('undo');
+      const canR = document.queryCommandEnabled && document.queryCommandEnabled('redo');
+      u.style.opacity = canU ? '1' : '0.4';
+      r.style.opacity = canR ? '1' : '0.4';
+    } catch {}
+  }
+  editor.addEventListener('input', refreshUndoRedoState);
+  document.addEventListener('selectionchange', refreshUndoRedoState);
+  refreshUndoRedoState();
+
+  // ============================================================
+  // IMPROVEMENT: Double-click word → highlight all instances
+  // ============================================================
+  editor.addEventListener('dblclick', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    const word = sel.toString().trim();
+    if (!word || word.length < 2 || /\s/.test(word)) return;
+    $('#findInput').value = word;
+    $('#matchCase').checked = false;
+    rerunFind();
+    toast('Highlighted ' + findMarks.length + ' matches of "' + word + '"', 'info', 1800);
+  });
+
+  // ============================================================
+  // IMPROVEMENT: Default font/size preference
+  // ============================================================
+  const STORE_DEFAULT_FONT = 'rodmanword:defaultFont';
+  const STORE_DEFAULT_SIZE = 'rodmanword:defaultSize';
+  const savedFont = localStorage.getItem(STORE_DEFAULT_FONT);
+  const savedSize = localStorage.getItem(STORE_DEFAULT_SIZE);
+  if (savedFont) {
+    $('#fontFamily').value = savedFont;
+    editor.style.fontFamily = savedFont;
+  }
+  if (savedSize) {
+    $('#fontSize').value = savedSize;
+    editor.style.fontSize = savedSize + 'pt';
+  }
+  $('#fontFamily').addEventListener('change', () => {
+    localStorage.setItem(STORE_DEFAULT_FONT, $('#fontFamily').value);
+  });
+  $('#fontSize').addEventListener('change', () => {
+    localStorage.setItem(STORE_DEFAULT_SIZE, $('#fontSize').value);
+  });
+
+  // ============================================================
+  // IMPROVEMENT: Right-click context menu
+  // ============================================================
+  function buildContextMenu(items, x, y) {
+    const old = document.querySelector('.context-menu');
+    if (old) old.remove();
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    items.forEach((item) => {
+      if (item === '-') {
+        const hr = document.createElement('hr');
+        menu.appendChild(hr);
+        return;
+      }
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.innerHTML = item.label +
+        (item.shortcut ? '<span class="shortcut">' + item.shortcut + '</span>' : '');
+      b.addEventListener('click', () => {
+        item.run();
+        menu.remove();
+      });
+      menu.appendChild(b);
+    });
+    menu.style.left = Math.min(x, window.innerWidth - 220) + 'px';
+    menu.style.top = Math.min(y, window.innerHeight - menu.offsetHeight - 10) + 'px';
+    document.body.appendChild(menu);
+    setTimeout(() => {
+      document.addEventListener('mousedown', (ev) => {
+        if (!menu.contains(ev.target)) menu.remove();
+      }, { once: true });
+    }, 0);
+  }
+
+  editor.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const sel = window.getSelection();
+    const hasSel = sel && !sel.isCollapsed && editor.contains(sel.anchorNode);
+    saveSelection();
+    const items = [];
+    if (hasSel) {
+      items.push({ label: 'Cut', shortcut: 'Ctrl+X', run: () => $('#cutBtn').click() });
+      items.push({ label: 'Copy', shortcut: 'Ctrl+C', run: () => $('#copyBtn').click() });
+    }
+    items.push({ label: 'Paste', shortcut: 'Ctrl+V', run: () => $('#pasteBtn').click() });
+    if (hasSel) {
+      items.push('-');
+      items.push({ label: 'Bold', shortcut: 'Ctrl+B', run: () => exec('bold') });
+      items.push({ label: 'Italic', shortcut: 'Ctrl+I', run: () => exec('italic') });
+      items.push({ label: 'Underline', shortcut: 'Ctrl+U', run: () => exec('underline') });
+      items.push('-');
+      items.push({ label: 'Insert link…', shortcut: 'Ctrl+K', run: () => openLinkModal() });
+      items.push({ label: 'Add comment…', run: () => $('#commentBtn').click() });
+      items.push('-');
+      items.push({ label: 'Highlight all matches', run: () => {
+        const word = sel.toString().trim();
+        if (word) { $('#findInput').value = word; rerunFind(); }
+      }});
+    } else {
+      items.push('-');
+      items.push({ label: 'Find & replace…', shortcut: 'Ctrl+F', run: () => $('#findBtn').click() });
+      items.push({ label: 'Insert date', run: () => $('#insertDateBtn').click() });
+      items.push({ label: 'Insert symbol…', run: () => $('#insertSymbolBtn').click() });
+    }
+    buildContextMenu(items, e.clientX, e.clientY);
+  });
+
+  // ============================================================
+  // IMPROVEMENT: Recent files with size in backstage
+  // ============================================================
+  // Override addRecent to record size
+  const _origAddRecent = addRecent;
+  addRecent = function (title) {
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem(STORE_RECENT) || '[]'); } catch {}
+    const size = new Blob([editor.innerHTML]).size;
+    const entry = { title, at: new Date().toISOString(), size };
+    list = [entry, ...list.filter((x) => x.title !== title)].slice(0, 10);
+    localStorage.setItem(STORE_RECENT, JSON.stringify(list));
+  };
+
+  // ============================================================
+  // IMPROVEMENT: Print page numbers + date header (via @page rules)
+  // ============================================================
+  function preparePrint() {
+    const pageEl = document.getElementById('page');
+    if (!pageEl) return;
+    pageEl.dataset.printTitle = docTitle.value || 'Document';
+    pageEl.dataset.printDate = new Date().toLocaleDateString();
+    // Inject a temporary @page style with concrete strings (some browsers don't read attr() in @page)
+    const old = document.getElementById('rwd-print-style');
+    if (old) old.remove();
+    const style = document.createElement('style');
+    style.id = 'rwd-print-style';
+    style.textContent = '@page { @top-center { content: "' +
+      String(pageEl.dataset.printTitle).replace(/"/g, '\\"') +
+      '"; font-family: sans-serif; font-size: 9pt; color: #666; } ' +
+      '@bottom-right { content: counter(page) " / " counter(pages); font-family: sans-serif; font-size: 9pt; color: #666; } ' +
+      '@bottom-left { content: "' +
+      String(pageEl.dataset.printDate).replace(/"/g, '\\"') +
+      '"; font-family: sans-serif; font-size: 9pt; color: #666; } }';
+    document.head.appendChild(style);
+  }
+
   // Prevent dropping random files into the editor as URLs
   editor.addEventListener('drop', (e) => {
     const files = e.dataTransfer && e.dataTransfer.files;
@@ -1105,6 +1518,102 @@ ${editor.innerHTML}
     statusSaved.textContent = msg;
     setTimeout(() => { statusSaved.textContent = prev; }, 1200);
   }
+
+  // ============================================================
+  // IMPROVEMENT: Toast notifications
+  // ============================================================
+  const toastContainer = $('#toastContainer');
+  function toast(msg, kind = 'info', durationMs = 2500) {
+    if (!toastContainer) { flashStatus(msg); return; }
+    const t = document.createElement('div');
+    t.className = 'toast ' + kind;
+    t.textContent = msg;
+    toastContainer.appendChild(t);
+    setTimeout(() => {
+      t.style.opacity = 0;
+      t.style.transition = 'opacity 0.3s';
+      setTimeout(() => t.remove(), 300);
+    }, durationMs);
+  }
+
+  // ============================================================
+  // IMPROVEMENT: Custom confirm dialog
+  // ============================================================
+  const confirmModal = $('#confirmModal');
+  function confirmDialog(message, title = 'Confirm') {
+    return new Promise((resolve) => {
+      $('#confirmTitle').textContent = title;
+      $('#confirmMessage').textContent = message;
+      confirmModal.hidden = false;
+      const ok = $('#confirmOk');
+      const cancel = $('#confirmCancel');
+      function cleanup(result) {
+        confirmModal.hidden = true;
+        ok.removeEventListener('click', onOk);
+        cancel.removeEventListener('click', onCancel);
+        resolve(result);
+      }
+      function onOk() { cleanup(true); }
+      function onCancel() { cleanup(false); }
+      ok.addEventListener('click', onOk);
+      cancel.addEventListener('click', onCancel);
+    });
+  }
+
+  // ============================================================
+  // IMPROVEMENT: Link insertion modal (replaces prompt)
+  // ============================================================
+  const linkModal = $('#linkModal');
+  function openLinkModal() {
+    const sel = window.getSelection();
+    const selText = sel && sel.toString() ? sel.toString() : '';
+    saveSelection();
+    $('#linkText').value = selText;
+    $('#linkUrl').value = 'https://';
+    linkModal.hidden = false;
+    setTimeout(() => $('#linkUrl').focus(), 50);
+  }
+  $('#insertLinkConfirm').addEventListener('click', () => {
+    const text = $('#linkText').value.trim();
+    const url = $('#linkUrl').value.trim();
+    if (!url) { closeModal(linkModal); return; }
+    restoreSelection();
+    if (text) {
+      document.execCommand('insertHTML', false,
+        '<a href="' + escapeHtml(url) + '">' + escapeHtml(text) + '</a>');
+    } else {
+      document.execCommand('createLink', false, url);
+    }
+    closeModal(linkModal);
+    queueAutosave();
+  });
+
+  // ============================================================
+  // IMPROVEMENT: Drag-and-drop file to open
+  // ============================================================
+  ['dragover', 'drop'].forEach((evt) => {
+    document.addEventListener(evt, (e) => {
+      if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+        e.preventDefault();
+      }
+    });
+  });
+  document.addEventListener('drop', (e) => {
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if (!files || !files.length) return;
+    const f = files[0];
+    if (f.type.startsWith('image/')) return; // image-drop handled by editor listener
+    if (!editor.contains(e.target) ||
+        /\.(rwd|html?|txt|md)$/i.test(f.name) ||
+        f.type === 'application/json') {
+      e.preventDefault();
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      const picker = $('#filePicker');
+      picker.files = dt.files;
+      picker.dispatchEvent(new Event('change'));
+    }
+  });
 
   // ============================================================
   // FEATURE: Table mini-toolbar
@@ -1272,7 +1781,15 @@ ${editor.innerHTML}
       if (!h.id) h.id = 'rwd-h-' + i;
       const li = document.createElement('li');
       li.className = 'lvl-' + h.tagName.charAt(1);
-      li.textContent = h.textContent || '(empty heading)';
+      // Count words from this heading until the next heading
+      let wc = 0;
+      let n = h.nextElementSibling;
+      while (n && !/^H[1-6]$/.test(n.tagName)) {
+        wc += (n.textContent || '').split(/\s+/).filter(Boolean).length;
+        n = n.nextElementSibling;
+      }
+      li.innerHTML = '<span>' + escapeHtml(h.textContent || '(empty heading)') +
+                     '</span><span class="wc">' + wc + 'w</span>';
       li.addEventListener('click', () => {
         h.scrollIntoView({ behavior: 'smooth', block: 'start' });
         const r = document.createRange();
@@ -1285,7 +1802,32 @@ ${editor.innerHTML}
       outlineList.appendChild(li);
       outlineEntries.push({ heading: h, li });
     });
+    const oc = document.getElementById('outlineCount');
+    if (oc) oc.textContent = headings.length + ' heading' + (headings.length === 1 ? '' : 's');
   }
+
+  // ============================================================
+  // IMPROVEMENT: Outline pane resize handle
+  // ============================================================
+  (function setupOutlineResize() {
+    const handle = document.getElementById('outlineResize');
+    if (!handle) return;
+    let dragging = false;
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      dragging = true;
+      document.body.style.cursor = 'col-resize';
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const next = Math.min(480, Math.max(160, e.clientX));
+      outlinePane.style.width = next + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      dragging = false;
+      document.body.style.cursor = '';
+    });
+  })();
 
   function syncOutlineCurrent() {
     if (outlinePane.hidden || !outlineEntries.length) return;
@@ -1751,9 +2293,41 @@ ${editor.innerHTML}
       btn.textContent = 'Exit focus (Esc)';
       btn.addEventListener('click', exitFocusMode);
       document.body.appendChild(btn);
+
+      const tw = document.createElement('button');
+      tw.className = 'focus-mode-exit';
+      tw.style.right = '180px';
+      tw.textContent = 'Typewriter mode';
+      tw.addEventListener('click', () => {
+        document.body.classList.toggle('typewriter');
+        tw.textContent = document.body.classList.contains('typewriter')
+          ? 'Standard view' : 'Typewriter mode';
+        if (document.body.classList.contains('typewriter')) centerCurrentLine();
+      });
+      document.body.appendChild(tw);
     }
     editor.focus();
   }
+
+  function centerCurrentLine() {
+    if (!document.body.classList.contains('typewriter')) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0).cloneRange();
+    range.collapse(true);
+    const rect = range.getClientRects()[0];
+    if (!rect) return;
+    const ws = document.querySelector('.workspace-main');
+    if (!ws) return;
+    const target = rect.top + ws.scrollTop - window.innerHeight / 2;
+    ws.scrollTo({ top: target, behavior: 'smooth' });
+  }
+  document.addEventListener('selectionchange', () => {
+    if (document.body.classList.contains('typewriter')) {
+      clearTimeout(window.__rwdTwT);
+      window.__rwdTwT = setTimeout(centerCurrentLine, 80);
+    }
+  });
 
   function exitFocusMode() {
     document.body.classList.remove('focus-mode');
@@ -2046,9 +2620,184 @@ ${editor.innerHTML}
   editor.addEventListener('input', (e) => {
     if (e.inputType === 'insertText' && (e.data === ' ' || e.data === '\n')) {
       autoCorrectOnSpace();
+      smartLinkify();
+      smartListConvert();
+      smartMarkdownInline();
+      smartCapitalize();
     } else if (e.inputType === 'insertText') {
       autoCorrectAtCursor();
     }
+  });
+
+  // ============================================================
+  // IMPROVEMENT: Smart auto-format helpers
+  // ============================================================
+  function getCaretTextBefore() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) return null;
+    const node = range.startContainer;
+    if (node.nodeType !== 3) return null;
+    return { node, offset: range.startOffset, text: node.nodeValue };
+  }
+
+  function smartLinkify() {
+    if (!autoCorrectToggle.checked) return;
+    const ctx = getCaretTextBefore();
+    if (!ctx) return;
+    const { node, offset, text } = ctx;
+    // Look at the word just before the trailing space
+    const before = text.slice(0, offset - 1);
+    const m = before.match(/(\S+)$/);
+    if (!m) return;
+    const word = m[1];
+    if (!/^https?:\/\/\S+$/i.test(word) && !/^www\.\S+\.\S+$/i.test(word)) return;
+    const start = offset - 1 - word.length;
+    const url = /^https?:/i.test(word) ? word : 'https://' + word;
+    const r = document.createRange();
+    r.setStart(node, start);
+    r.setEnd(node, offset - 1);
+    const a = document.createElement('a');
+    a.href = url;
+    a.textContent = word;
+    r.deleteContents();
+    r.insertNode(a);
+    // Place caret after the inserted link + the trailing space
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    const r2 = document.createRange();
+    if (a.nextSibling) {
+      r2.setStart(a.nextSibling, Math.min(1, a.nextSibling.nodeValue.length));
+      r2.setEnd(a.nextSibling, Math.min(1, a.nextSibling.nodeValue.length));
+    } else {
+      r2.setStartAfter(a);
+      r2.setEndAfter(a);
+    }
+    sel.addRange(r2);
+  }
+
+  function smartListConvert() {
+    if (!autoCorrectToggle.checked) return;
+    const ctx = getCaretTextBefore();
+    if (!ctx) return;
+    const { node, text, offset } = ctx;
+    const lineStart = text.lastIndexOf('\n', offset - 2) + 1;
+    const line = text.slice(lineStart, offset);
+    let cmd = null;
+    if (/^[-*]\s$/.test(line)) cmd = 'insertUnorderedList';
+    else if (/^\d+\.\s$/.test(line)) cmd = 'insertOrderedList';
+    if (!cmd) return;
+    // Remove the marker text
+    node.nodeValue = text.slice(0, lineStart) + text.slice(offset);
+    const sel = window.getSelection();
+    const r = document.createRange();
+    r.setStart(node, lineStart);
+    r.setEnd(node, lineStart);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    document.execCommand(cmd);
+  }
+
+  function smartMarkdownInline() {
+    if (!autoCorrectToggle.checked) return;
+    const ctx = getCaretTextBefore();
+    if (!ctx) return;
+    const { node, text, offset } = ctx;
+    const before = text.slice(0, offset - 1);
+
+    // Bold: **word**
+    const boldMatch = before.match(/\*\*([^*\n]+)\*\*$/);
+    if (boldMatch) {
+      const start = offset - 1 - boldMatch[0].length;
+      const r = document.createRange();
+      r.setStart(node, start);
+      r.setEnd(node, offset - 1);
+      r.deleteContents();
+      const b = document.createElement('strong');
+      b.textContent = boldMatch[1];
+      r.insertNode(b);
+      placeCaretAfter(b);
+      return;
+    }
+    // Italic: *word* (not at start of **)
+    const italicMatch = before.match(/(?:^|[^*])\*([^*\n]+)\*$/);
+    if (italicMatch) {
+      const fragLen = italicMatch[1].length + 2; // *word*
+      const start = offset - 1 - fragLen;
+      const r = document.createRange();
+      r.setStart(node, start);
+      r.setEnd(node, offset - 1);
+      r.deleteContents();
+      const em = document.createElement('em');
+      em.textContent = italicMatch[1];
+      r.insertNode(em);
+      placeCaretAfter(em);
+      return;
+    }
+    // Inline code: `word`
+    const codeMatch = before.match(/`([^`\n]+)`$/);
+    if (codeMatch) {
+      const start = offset - 1 - codeMatch[0].length;
+      const r = document.createRange();
+      r.setStart(node, start);
+      r.setEnd(node, offset - 1);
+      r.deleteContents();
+      const c = document.createElement('code');
+      c.textContent = codeMatch[1];
+      r.insertNode(c);
+      placeCaretAfter(c);
+    }
+  }
+
+  function placeCaretAfter(el) {
+    const sel = window.getSelection();
+    const space = document.createTextNode(' ');
+    el.parentNode.insertBefore(space, el.nextSibling);
+    const r = document.createRange();
+    r.setStartAfter(space);
+    r.setEndAfter(space);
+    sel.removeAllRanges();
+    sel.addRange(r);
+  }
+
+  function smartCapitalize() {
+    if (!autoCorrectToggle.checked) return;
+    const ctx = getCaretTextBefore();
+    if (!ctx) return;
+    const { node, text, offset } = ctx;
+    // After "<sentence end> <space>" capitalize next typed letter
+    // Easier: scan for "[.!?]\s+([a-z])" and capitalize it (only at the very last sentence position)
+    const m = text.slice(0, offset).match(/([.!?]\s+|^)([a-z])([^.!?]*)$/);
+    if (!m) return;
+    const startOf = offset - (m[2].length + (m[3] ? m[3].length : 0));
+    if (text[startOf] !== m[2]) return;
+    // Replace just the lower-case letter
+    node.nodeValue =
+      text.slice(0, startOf) + m[2].toUpperCase() + text.slice(startOf + 1);
+  }
+
+  // Auto-pair brackets/quotes when text is selected
+  editor.addEventListener('keydown', (e) => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !editor.contains(sel.anchorNode)) return;
+    const pairs = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`', '<': '>' };
+    const close = pairs[e.key];
+    if (!close) return;
+    e.preventDefault();
+    const range = sel.getRangeAt(0);
+    const text = range.toString();
+    range.deleteContents();
+    const replacement = e.key + text + close;
+    const node = document.createTextNode(replacement);
+    range.insertNode(node);
+    // re-select the inner text
+    const r = document.createRange();
+    r.setStart(node, 1);
+    r.setEnd(node, 1 + text.length);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    queueAutosave();
   });
 
   // ============================================================
@@ -2154,11 +2903,36 @@ ${editor.innerHTML}
     document.body.classList.add('reading-mode');
     editor.contentEditable = 'false';
     readingExitBtn.hidden = false;
+    buildReadingTOC();
   }
   function exitReadingMode() {
     document.body.classList.remove('reading-mode');
     editor.contentEditable = 'true';
     readingExitBtn.hidden = true;
+    const toc = document.querySelector('.reading-toc');
+    if (toc) toc.remove();
+  }
+
+  function buildReadingTOC() {
+    const headings = editor.querySelectorAll('h1, h2, h3');
+    if (!headings.length) return;
+    const old = document.querySelector('.reading-toc');
+    if (old) old.remove();
+    const toc = document.createElement('div');
+    toc.className = 'reading-toc';
+    toc.innerHTML = '<h4>Contents</h4><ol></ol>';
+    const ol = toc.querySelector('ol');
+    headings.forEach((h, i) => {
+      if (!h.id) h.id = 'rwd-h-' + i;
+      const li = document.createElement('li');
+      li.className = 'lvl-' + h.tagName.charAt(1);
+      li.textContent = h.textContent || '(empty)';
+      li.addEventListener('click', () => {
+        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      ol.appendChild(li);
+    });
+    document.body.appendChild(toc);
   }
   $('#readingModeBtn').addEventListener('click', enterReadingMode);
   readingExitBtn.addEventListener('click', exitReadingMode);

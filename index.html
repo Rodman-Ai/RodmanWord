@@ -305,9 +305,11 @@
   <main class="workspace" id="workspace">
     <aside class="outline-pane" id="outlinePane" hidden>
       <header><span>Navigation</span>
+        <span id="outlineCount" class="muted" style="margin-left:auto;font-size:11px"></span>
         <button class="icon-btn" id="outlineCloseBtn" aria-label="Close">✕</button>
       </header>
       <ol id="outlineList"></ol>
+      <div class="outline-resize" id="outlineResize" aria-hidden="true"></div>
     </aside>
     <div class="workspace-main">
       <div class="ruler" id="ruler" aria-hidden="true"></div>
@@ -336,6 +338,7 @@
   </main>
 
   <footer class="status-bar">
+    <span id="dirtyDot" class="dirty-dot" hidden>●</span>
     <span id="statusPage">Page 1 of 1</span>
     <span class="sep">•</span>
     <button class="status-btn" id="statusWords">0 words</button>
@@ -343,6 +346,10 @@
     <span id="statusChars">0 characters</span>
     <span class="sep">•</span>
     <span id="statusReading">0 min read</span>
+    <span class="sep">•</span>
+    <span id="statusCursor">Ln 1, Col 1</span>
+    <span class="sep">•</span>
+    <span id="statusSize">0 KB</span>
     <span class="spacer"></span>
     <span id="goalIndicator" class="goal-indicator" hidden>
       <span id="goalLabel">Goal</span>
@@ -578,6 +585,60 @@
 
   <!-- Reading-mode bar -->
   <button id="readingExitBtn" class="focus-mode-exit" hidden>Exit reading mode (Esc)</button>
+
+  <!-- Toast container -->
+  <div id="toastContainer" class="toasts"></div>
+
+  <!-- Link insertion modal -->
+  <div class="modal" id="linkModal" hidden>
+    <div class="modal-card">
+      <header><h3>Insert link</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <label>Display text <input id="linkText" type="text" /></label>
+        <label>URL <input id="linkUrl" type="text" placeholder="https://" /></label>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="insertLinkConfirm">Insert</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Custom confirm modal -->
+  <div class="modal" id="confirmModal" hidden>
+    <div class="modal-card">
+      <header><h3 id="confirmTitle">Confirm</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p id="confirmMessage" style="margin:0"></p>
+      </div>
+      <footer>
+        <button class="btn" id="confirmCancel">Cancel</button>
+        <button class="btn primary" id="confirmOk">OK</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- About modal -->
+  <div class="modal" id="aboutModal" hidden>
+    <div class="modal-card">
+      <header><h3>About RodmanWord</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body about-body">
+        <div class="about-logo">W</div>
+        <h2 style="margin:8px 0">RodmanWord</h2>
+        <p class="muted">Browser-based Microsoft Word clone</p>
+        <p>Version <b id="aboutVersion">2026.04.30</b></p>
+        <p>Open source, MIT licensed. Runs entirely in your browser.</p>
+        <p><a href="https://github.com/Rodman-Ai/RodmanWord" target="_blank" rel="noopener">View source on GitHub →</a></p>
+      </div>
+      <footer><button class="btn primary" data-close-modal>Close</button></footer>
+    </div>
+  </div>
 
   <input type="file" id="filePicker" accept=".rwd,.html,.htm,.txt,.md,application/json" hidden />
   <input type="file" id="imagePicker" accept="image/*" hidden />
