@@ -817,6 +817,10 @@
         exportDocx();
         closeBackstage();
         break;
+      case 'export-pdf':
+        exportPdf();
+        closeBackstage();
+        break;
       case 'export-md':
         exportMarkdown();
         closeBackstage();
@@ -977,6 +981,43 @@ ${editor.innerHTML}
     }
   }
 
+  function exportPdf() {
+    if (!window.RodmanPdf) {
+      toast('pdfio.js not loaded', 'error');
+      return;
+    }
+    try {
+      // Map current page size to PDF media box (points)
+      const sizes = {
+        a4:     { w: 595, h: 842 },
+        letter: { w: 612, h: 792 },
+        legal:  { w: 612, h: 1008 },
+      };
+      const sz = sizes[pageSize.value] || sizes.a4;
+      const land = orientation.value === 'landscape';
+      const marginsMap = { normal: 72, narrow: 36, wide: 108 };
+      const blob = window.RodmanPdf.savePdf(editor.innerHTML, {
+        pageW: land ? sz.h : sz.w,
+        pageH: land ? sz.w : sz.h,
+        margin: marginsMap[margins.value] || 72,
+        title: docTitle.value,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = sanitizeFileName(docTitle.value) + '.pdf';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+      toast('Exported PDF', 'success');
+    } catch (err) {
+      toast('Export failed: ' + err.message, 'error');
+    }
+  }
+
   function sanitizeFileName(name) {
     return (name || 'document').replace(/[^\w\-]+/g, '_').slice(0, 64) || 'document';
   }
@@ -1045,6 +1086,24 @@ ${editor.innerHTML}
         toast('Imported .docx', 'success');
       } catch (err) {
         toast('Could not read this .docx file: ' + err.message, 'error');
+      }
+      e.target.value = '';
+      return;
+    }
+    if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
+      try {
+        const buf = await file.arrayBuffer();
+        if (!window.RodmanPdf) throw new Error('pdfio.js not loaded');
+        const html = await window.RodmanPdf.loadPdf(buf);
+        editor.innerHTML = sanitizeImported(html);
+        docTitle.value = file.name.replace(/\.pdf$/i, '');
+        addRecent(docTitle.value);
+        queueAutosave();
+        rebuildOutline();
+        closeBackstage();
+        toast('Imported PDF text', 'success');
+      } catch (err) {
+        toast('Could not extract text from PDF: ' + err.message, 'error');
       }
       e.target.value = '';
       return;
@@ -1577,6 +1636,7 @@ ${editor.innerHTML}
     { name: 'Insert date', run: () => $('#insertDateBtn').click() },
     { name: 'Insert lorem ipsum', run: () => $('#loremBtn').click() },
     { name: 'Export as Word (.docx)', run: () => exportDocx() },
+    { name: 'Export as PDF', run: () => exportPdf() },
     { name: 'Export as HTML', run: () => exportHtml() },
     { name: 'Export as Markdown', run: () => exportMarkdown() },
     { name: 'Export as Text', run: () => exportTxt() },
@@ -2635,8 +2695,9 @@ ${editor.innerHTML}
     const f = files[0];
     if (f.type.startsWith('image/')) return; // image-drop handled by editor listener
     if (!editor.contains(e.target) ||
-        /\.(rwd|html?|txt|md|docx)$/i.test(f.name) ||
+        /\.(rwd|html?|txt|md|docx|pdf)$/i.test(f.name) ||
         f.type === 'application/json' ||
+        f.type === 'application/pdf' ||
         f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       e.preventDefault();
       const dt = new DataTransfer();

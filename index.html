@@ -333,6 +333,7 @@
         <li><button data-action="open">Open…</button></li>
         <li><button data-action="save">Save (.rwd)</button></li>
         <li><button data-action="export-docx">Export Word (.docx)</button></li>
+        <li><button data-action="export-pdf">Export PDF</button></li>
         <li><button data-action="export-html">Export HTML</button></li>
         <li><button data-action="export-md">Export Markdown</button></li>
         <li><button data-action="export-txt">Export Text</button></li>
@@ -842,10 +843,11 @@
   <!-- Watermark overlay -->
   <div id="watermarkOverlay" class="watermark-overlay" hidden></div>
 
-  <input type="file" id="filePicker" accept=".rwd,.html,.htm,.txt,.md,.rwd.enc,.docx,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+  <input type="file" id="filePicker" accept=".rwd,.html,.htm,.txt,.md,.rwd.enc,.docx,.pdf,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
   <input type="file" id="imagePicker" accept="image/*" hidden />
 
   <script src="docx.js"></script>
+  <script src="pdfio.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
