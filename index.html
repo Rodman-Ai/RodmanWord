@@ -178,8 +178,19 @@
           <button class="ribbon-btn wide" id="insertTocBtn" title="Insert table of contents">📑 TOC</button>
           <button class="ribbon-btn wide" id="insertFootnoteBtn" title="Insert footnote">⁺¹ Footnote</button>
           <button class="ribbon-btn wide" id="dropCapBtn" title="Toggle drop cap on paragraph">A Drop cap</button>
+          <button class="ribbon-btn wide" id="bookmarkBtn" title="Add bookmark at cursor">🔖 Bookmark</button>
+          <button class="ribbon-btn wide" id="bookmarksMenuBtn" title="Jump to bookmark">📚 Bookmarks ▾</button>
         </div>
         <div class="group-label">Layout</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn wide" id="pullQuoteBtn" title="Insert pull quote">❝ Pull quote</button>
+          <button class="ribbon-btn wide" id="codeBlockBtn" title="Insert code block">{ } Code</button>
+          <button class="ribbon-btn wide" id="wordArtBtn" title="Insert decorative title">✨ Word art</button>
+          <button class="ribbon-btn wide" id="watermarkBtn" title="Toggle watermark">💧 Watermark</button>
+        </div>
+        <div class="group-label">Decorative</div>
       </div>
       <div class="group">
         <div class="group-row">
@@ -236,6 +247,14 @@
               <option value="normal">Normal</option>
               <option value="narrow">Narrow</option>
               <option value="wide">Wide</option>
+            </select>
+          </label>
+          <label class="control">
+            Columns
+            <select id="columns" class="select">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
             </select>
           </label>
         </div>
@@ -322,6 +341,10 @@
         <li><button data-action="properties">Properties</button></li>
         <li><button data-action="share">Share link</button></li>
         <li><button data-action="goal">Writing goal</button></li>
+        <li><button data-action="merge">Mail merge</button></li>
+        <li><button data-action="compare">Compare…</button></li>
+        <li><button data-action="encrypt">Save encrypted</button></li>
+        <li><button data-action="customcss">Custom CSS</button></li>
         <li><button data-action="about">About</button></li>
       </ul>
     </aside>
@@ -339,6 +362,7 @@
         <button class="icon-btn" id="outlineCloseBtn" aria-label="Close">✕</button>
       </header>
       <ol id="outlineList"></ol>
+      <div class="mini-map" id="miniMap" aria-hidden="true"></div>
       <div class="outline-resize" id="outlineResize" aria-hidden="true"></div>
     </aside>
     <div class="workspace-main">
@@ -608,6 +632,8 @@
     <button data-iact="align-center" title="Center">⯀</button>
     <button data-iact="align-right" title="Align right">⯈</button>
     <span style="width:1px;background:var(--ribbon-border)"></span>
+    <button data-iact="rotate-l" title="Rotate −90°">↺</button>
+    <button data-iact="rotate-r" title="Rotate +90°">↻</button>
     <button data-iact="caption">Caption…</button>
     <button data-iact="alt">Alt…</button>
     <button data-iact="delete">🗑</button>
@@ -681,7 +707,141 @@
     </div>
   </div>
 
-  <input type="file" id="filePicker" accept=".rwd,.html,.htm,.txt,.md,application/json" hidden />
+  <!-- Bookmarks dropdown -->
+  <div id="bookmarksPopup" class="bookmarks-popup" hidden></div>
+
+  <!-- Mail merge modal -->
+  <div class="modal" id="mailMergeModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Mail merge</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p>Use <code>{{Field}}</code> placeholders in your document, then paste CSV (header row + data rows) below. One document is generated per row.</p>
+        <label>CSV data
+          <textarea id="mergeCsv" rows="6" placeholder="Name,City&#10;Alice,Paris&#10;Bob,Tokyo"></textarea>
+        </label>
+        <p id="mergeStatus" class="muted"></p>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="runMergeBtn">Merge &amp; download</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Watermark modal -->
+  <div class="modal" id="watermarkModal" hidden>
+    <div class="modal-card">
+      <header><h3>Watermark</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <label>Text <input id="watermarkText" type="text" placeholder="DRAFT" /></label>
+        <label class="row"><input type="checkbox" id="watermarkOn" /> Show watermark</label>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="saveWatermarkBtn">Apply</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Command palette -->
+  <div class="modal" id="paletteModal" hidden>
+    <div class="modal-card">
+      <header><h3>Command palette</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <input id="paletteInput" type="text" placeholder="Type to search commands…" autofocus />
+        <ul id="paletteResults" class="palette-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Compare docs modal -->
+  <div class="modal" id="compareModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Compare with another document</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Paste plain text from another version. Lines added are green, removed are red.</p>
+        <textarea id="compareInput" rows="8" placeholder="Paste plain text of the other document here…"></textarea>
+        <div id="compareResult" class="compare-result"></div>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Close</button>
+        <button class="btn primary" id="runCompareBtn">Compare</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Custom CSS editor -->
+  <div class="modal" id="cssModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Custom CSS</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Custom CSS is applied to the editor. Useful for tweaking fonts, spacing, or printable colors.</p>
+        <textarea id="customCss" rows="10" spellcheck="false" placeholder="/* example */&#10;.editor h1 { letter-spacing: 0.05em; }"></textarea>
+      </div>
+      <footer>
+        <button class="btn" id="clearCssBtn">Clear</button>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="saveCssBtn">Apply</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Password protect modal -->
+  <div class="modal" id="encryptModal" hidden>
+    <div class="modal-card">
+      <header><h3>Save with password</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">The document is encrypted with AES-GCM. Anyone opening the file will need this password.</p>
+        <label>Password <input id="encryptPwd" type="password" /></label>
+        <label>Confirm <input id="encryptPwd2" type="password" /></label>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="encryptSaveBtn">Save .rwd.enc</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Calendar picker (date insert) -->
+  <div class="modal" id="calModal" hidden>
+    <div class="modal-card">
+      <header><h3>Insert date</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <label>Date <input id="calInput" type="date" /></label>
+        <label>Format
+          <select id="calFormat">
+            <option value="long">April 30, 2026</option>
+            <option value="short">4/30/2026</option>
+            <option value="iso">2026-04-30</option>
+            <option value="full">Thursday, April 30, 2026</option>
+          </select>
+        </label>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="calInsertBtn">Insert</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Watermark overlay -->
+  <div id="watermarkOverlay" class="watermark-overlay" hidden></div>
+
+  <input type="file" id="filePicker" accept=".rwd,.html,.htm,.txt,.md,.rwd.enc,application/json" hidden />
   <input type="file" id="imagePicker" accept="image/*" hidden />
 
   <script src="app.js"></script>

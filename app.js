@@ -261,10 +261,29 @@
   $('#insertLinkBtn').addEventListener('click', openLinkModal);
 
   $('#insertDateBtn').addEventListener('click', () => {
-    const today = new Date().toLocaleDateString(undefined, {
-      year: 'numeric', month: 'long', day: 'numeric'
-    });
-    exec('insertText', today);
+    saveSelection();
+    $('#calInput').value = new Date().toISOString().slice(0, 10);
+    openModal($('#calModal'));
+  });
+  $('#calInsertBtn').addEventListener('click', () => {
+    const v = $('#calInput').value;
+    if (!v) { closeModal($('#calModal')); return; }
+    const date = new Date(v + 'T00:00:00');
+    const fmt = $('#calFormat').value;
+    let out;
+    switch (fmt) {
+      case 'short': out = date.toLocaleDateString(undefined,
+        { year: 'numeric', month: 'numeric', day: 'numeric' }); break;
+      case 'iso':   out = v; break;
+      case 'full':  out = date.toLocaleDateString(undefined,
+        { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }); break;
+      default: out = date.toLocaleDateString(undefined,
+        { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    restoreSelection();
+    document.execCommand('insertText', false, out);
+    closeModal($('#calModal'));
+    queueAutosave();
   });
 
   $('#pageBreakBtn').addEventListener('click', () => {
@@ -355,6 +374,8 @@
   const orientation = $('#orientation');
   const margins = $('#margins');
 
+  const columns = $('#columns');
+
   function applyLayout() {
     page.classList.remove('a4', 'letter', 'legal');
     page.classList.add(pageSize.value);
@@ -362,10 +383,12 @@
     page.classList.toggle('portrait', orientation.value === 'portrait');
     page.classList.remove('margins-normal', 'margins-narrow', 'margins-wide');
     page.classList.add('margins-' + margins.value);
+    page.classList.remove('cols-1', 'cols-2', 'cols-3');
+    if (columns) page.classList.add('cols-' + columns.value);
     savePrefs();
   }
 
-  [pageSize, orientation, margins].forEach((el) =>
+  [pageSize, orientation, margins, columns].filter(Boolean).forEach((el) =>
     el.addEventListener('change', applyLayout)
   );
 
@@ -813,6 +836,25 @@
         $('#goalTarget').value = writingGoal || 500;
         openModal(goalModal);
         break;
+      case 'merge':
+        closeBackstage();
+        openModal($('#mailMergeModal'));
+        break;
+      case 'compare':
+        closeBackstage();
+        openModal($('#compareModal'));
+        break;
+      case 'encrypt':
+        closeBackstage();
+        $('#encryptPwd').value = '';
+        $('#encryptPwd2').value = '';
+        openModal($('#encryptModal'));
+        break;
+      case 'customcss':
+        closeBackstage();
+        $('#customCss').value = localStorage.getItem('rodmanword:customCss') || '';
+        openModal($('#cssModal'));
+        break;
       case 'print':
         closeBackstage();
         setTimeout(() => { preparePrint(); window.print(); }, 100);
@@ -920,9 +962,47 @@ ${editor.innerHTML}
       .replace(/"/g, '&quot;');
   }
 
-  $('#filePicker').addEventListener('change', (e) => {
+  async function decryptRwd(payloadStr) {
+    let payload;
+    try { payload = JSON.parse(payloadStr); } catch { return null; }
+    if (!payload.rwdEnc) return null;
+    const pwd = prompt('Password for this document:');
+    if (!pwd) return null;
+    try {
+      const b64ToBytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+      const salt = b64ToBytes(payload.salt);
+      const iv = b64ToBytes(payload.iv);
+      const ct = b64ToBytes(payload.data);
+      const key = await deriveKey(pwd, salt);
+      const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+      return JSON.parse(new TextDecoder().decode(pt));
+    } catch {
+      toast('Wrong password or corrupted file', 'error');
+      return null;
+    }
+  }
+
+  $('#filePicker').addEventListener('change', async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    if (/\.rwd\.enc$/i.test(file.name)) {
+      const txt = await file.text();
+      const data = await decryptRwd(txt);
+      e.target.value = '';
+      if (!data) return;
+      editor.innerHTML = sanitizeImported(data.html || '');
+      docTitle.value = data.title || file.name.replace(/\.rwd\.enc$/i, '');
+      if (data.layout) {
+        pageSize.value = data.layout.size || pageSize.value;
+        orientation.value = data.layout.orientation || orientation.value;
+        margins.value = data.layout.margins || margins.value;
+        applyLayout();
+      }
+      addRecent(docTitle.value);
+      queueAutosave();
+      closeBackstage();
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const content = String(reader.result);
@@ -1433,6 +1513,680 @@ ${editor.innerHTML}
     list = [entry, ...list.filter((x) => x.title !== title)].slice(0, 10);
     localStorage.setItem(STORE_RECENT, JSON.stringify(list));
   };
+
+  // ============================================================
+  // FEATURE: Command palette (Ctrl+Shift+P)
+  // ============================================================
+  const PALETTE = [
+    { name: 'New document', shortcut: 'Ctrl+N', run: () => newDocument() },
+    { name: 'Open file', shortcut: 'Ctrl+O', run: () => $('#filePicker').click() },
+    { name: 'Save document', shortcut: 'Ctrl+S', run: () => saveDocument() },
+    { name: 'Print / PDF', shortcut: 'Ctrl+P', run: () => { preparePrint(); window.print(); } },
+    { name: 'Find & replace', shortcut: 'Ctrl+F', run: () => $('#findBtn').click() },
+    { name: 'Insert link', shortcut: 'Ctrl+K', run: () => openLinkModal() },
+    { name: 'Insert table', run: () => $('#insertTableBtn').click() },
+    { name: 'Insert image', run: () => $('#insertImageBtn').click() },
+    { name: 'Insert symbol', run: () => $('#insertSymbolBtn').click() },
+    { name: 'Insert emoji', run: () => $('#insertEmojiBtn').click() },
+    { name: 'Insert date', run: () => $('#insertDateBtn').click() },
+    { name: 'Insert lorem ipsum', run: () => $('#loremBtn').click() },
+    { name: 'Insert table of contents', run: () => $('#insertTocBtn').click() },
+    { name: 'Insert footnote', run: () => $('#insertFootnoteBtn').click() },
+    { name: 'Insert pull quote', run: () => $('#pullQuoteBtn').click() },
+    { name: 'Insert code block', run: () => $('#codeBlockBtn').click() },
+    { name: 'Insert word art', run: () => $('#wordArtBtn').click() },
+    { name: 'Add bookmark', run: () => $('#bookmarkBtn').click() },
+    { name: 'Show bookmarks', run: () => $('#bookmarksMenuBtn').click() },
+    { name: 'Add comment', run: () => $('#commentBtn').click() },
+    { name: 'Toggle drop cap', run: () => $('#dropCapBtn').click() },
+    { name: 'Sort selected lines (A → Z)', run: () => sortSelectedLines(false) },
+    { name: 'Sort selected lines (Z → A)', run: () => sortSelectedLines(true) },
+    { name: 'Toggle focus mode', shortcut: 'F11', run: () => toggleFocus() },
+    { name: 'Toggle reading mode', run: () => $('#readingModeBtn').click() },
+    { name: 'Read aloud', run: () => $('#readAloudBtn').click() },
+    { name: 'Voice dictation', run: () => $('#dictateBtn').click() },
+    { name: 'Word count details', run: () => { renderCountModal(); openModal(countModal); } },
+    { name: 'Document properties', run: () => openPropsModal() },
+    { name: 'Writing goal…', run: () => { $('#goalTarget').value = writingGoal || 500; openModal(goalModal); } },
+    { name: 'Mail merge…', run: () => openModal($('#mailMergeModal')) },
+    { name: 'Compare with another document', run: () => openModal($('#compareModal')) },
+    { name: 'Watermark…', run: () => $('#watermarkBtn').click() },
+    { name: 'Custom CSS…', run: () => { $('#customCss').value = localStorage.getItem('rodmanword:customCss') || ''; openModal($('#cssModal')); } },
+    { name: 'Save with password', run: () => { $('#encryptPwd').value=''; $('#encryptPwd2').value=''; openModal($('#encryptModal')); } },
+    { name: 'Share link', run: () => { setBackstageView('share'); backstage.hidden = false; } },
+    { name: 'Theme: Light', run: () => { themeSelect.value = ''; themeSelect.dispatchEvent(new Event('change')); } },
+    { name: 'Theme: Dark', run: () => { themeSelect.value = 'dark'; themeSelect.dispatchEvent(new Event('change')); } },
+    { name: 'Theme: Sepia', run: () => { themeSelect.value = 'sepia'; themeSelect.dispatchEvent(new Event('change')); } },
+    { name: 'Theme: High contrast', run: () => { themeSelect.value = 'contrast'; themeSelect.dispatchEvent(new Event('change')); } },
+    { name: 'Keyboard shortcuts', shortcut: '?', run: () => openModal($('#shortcutsModal')) },
+    { name: 'About RodmanWord', run: () => openModal($('#aboutModal')) },
+  ];
+
+  const paletteModal = $('#paletteModal');
+  const paletteInput = $('#paletteInput');
+  const paletteResults = $('#paletteResults');
+
+  function renderPalette(query) {
+    const q = (query || '').toLowerCase().trim();
+    paletteResults.innerHTML = '';
+    const items = !q ? PALETTE : PALETTE.filter((c) =>
+      c.name.toLowerCase().includes(q));
+    items.slice(0, 30).forEach((c, i) => {
+      const li = document.createElement('li');
+      if (i === 0) li.classList.add('active');
+      li.innerHTML = '<span>' + escapeHtml(c.name) + '</span>' +
+        (c.shortcut ? '<span class="shortcut">' + c.shortcut + '</span>' : '');
+      li.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        c.run();
+        closeModal(paletteModal);
+      });
+      paletteResults.appendChild(li);
+    });
+  }
+
+  paletteInput.addEventListener('input', () => renderPalette(paletteInput.value));
+  paletteInput.addEventListener('keydown', (e) => {
+    const items = Array.from(paletteResults.children);
+    const idx = items.findIndex((li) => li.classList.contains('active'));
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (items[idx]) items[idx].classList.remove('active');
+      const ni = Math.min(items.length - 1, idx + 1);
+      if (items[ni]) items[ni].classList.add('active');
+      items[ni]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (items[idx]) items[idx].classList.remove('active');
+      const ni = Math.max(0, idx - 1);
+      if (items[ni]) items[ni].classList.add('active');
+      items[ni]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const li = items[idx >= 0 ? idx : 0];
+      if (li) li.dispatchEvent(new MouseEvent('mousedown'));
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+      e.preventDefault();
+      paletteInput.value = '';
+      renderPalette('');
+      openModal(paletteModal);
+      setTimeout(() => paletteInput.focus(), 50);
+    }
+  });
+
+  // ============================================================
+  // FEATURE: Repeat last action (Ctrl+Alt+Y)
+  // ============================================================
+  let lastAction = null;
+  // Wrap exec to record last action
+  const _exec = exec;
+  exec = function (cmd, value) {
+    lastAction = { kind: 'exec', cmd, value };
+    return _exec(cmd, value);
+  };
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      if (!lastAction) { toast('No action to repeat', 'info'); return; }
+      if (lastAction.kind === 'exec') exec(lastAction.cmd, lastAction.value);
+      toast('Repeated: ' + lastAction.cmd);
+    }
+  });
+
+  // ============================================================
+  // FEATURE: Password-protected .rwd export (AES-GCM)
+  // ============================================================
+  async function deriveKey(password, salt) {
+    const enc = new TextEncoder();
+    const baseKey = await crypto.subtle.importKey(
+      'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
+    );
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' },
+      baseKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+  function bytesToB64(bytes) {
+    let s = '';
+    for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s);
+  }
+
+  $('#encryptSaveBtn').addEventListener('click', async () => {
+    const p1 = $('#encryptPwd').value;
+    const p2 = $('#encryptPwd2').value;
+    if (!p1) { toast('Password is empty', 'error'); return; }
+    if (p1 !== p2) { toast('Passwords do not match', 'error'); return; }
+    const data = JSON.stringify({
+      version: 1,
+      title: docTitle.value,
+      html: editor.innerHTML,
+      layout: { size: pageSize.value, orientation: orientation.value, margins: margins.value },
+      properties: docProps || {},
+      savedAt: new Date().toISOString(),
+    });
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    try {
+      const key = await deriveKey(p1, salt);
+      const ct = new Uint8Array(await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv }, key, new TextEncoder().encode(data)
+      ));
+      const payload = JSON.stringify({
+        rwdEnc: 1,
+        salt: bytesToB64(salt),
+        iv: bytesToB64(iv),
+        data: bytesToB64(ct),
+      });
+      downloadBlob(payload, sanitizeFileName(docTitle.value) + '.rwd.enc', 'application/octet-stream');
+      closeModal($('#encryptModal'));
+      toast('Saved encrypted .rwd.enc', 'success');
+    } catch (err) {
+      toast('Encryption failed: ' + err.message, 'error');
+    }
+  });
+
+  // ============================================================
+  // FEATURE: Custom CSS editor
+  // ============================================================
+  function applyCustomCss() {
+    const css = localStorage.getItem('rodmanword:customCss') || '';
+    let style = document.getElementById('rwd-custom-css');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'rwd-custom-css';
+      document.head.appendChild(style);
+    }
+    style.textContent = css;
+  }
+  applyCustomCss();
+  $('#saveCssBtn').addEventListener('click', () => {
+    localStorage.setItem('rodmanword:customCss', $('#customCss').value);
+    applyCustomCss();
+    closeModal($('#cssModal'));
+    toast('Custom CSS applied', 'success');
+  });
+  $('#clearCssBtn').addEventListener('click', () => {
+    $('#customCss').value = '';
+    localStorage.removeItem('rodmanword:customCss');
+    applyCustomCss();
+    toast('Custom CSS cleared', 'info');
+  });
+
+  // ============================================================
+  // FEATURE: Mini map in outline pane
+  // ============================================================
+  const miniMap = $('#miniMap');
+  let miniMapCanvas = null, miniMapViewport = null;
+  function ensureMiniMap() {
+    if (!miniMap) return;
+    if (!miniMapCanvas) {
+      miniMapCanvas = document.createElement('div');
+      miniMapCanvas.className = 'canvas';
+      miniMap.appendChild(miniMapCanvas);
+      miniMapViewport = document.createElement('div');
+      miniMapViewport.className = 'viewport';
+      miniMap.appendChild(miniMapViewport);
+      miniMap.addEventListener('click', (e) => {
+        const ws = document.querySelector('.workspace-main');
+        const r = miniMap.getBoundingClientRect();
+        const ratio = (e.clientY - r.top) / r.height;
+        if (ws) ws.scrollTo({ top: ratio * ws.scrollHeight - 100, behavior: 'smooth' });
+      });
+    }
+  }
+  function refreshMiniMap() {
+    if (outlinePane.hidden || !miniMap) return;
+    ensureMiniMap();
+    miniMapCanvas.textContent = (editor.innerText || '').slice(0, 8000);
+    const ws = document.querySelector('.workspace-main');
+    if (!ws) return;
+    const total = ws.scrollHeight;
+    const view = ws.clientHeight;
+    const top = ws.scrollTop;
+    const r = miniMap.getBoundingClientRect();
+    miniMapViewport.style.top = (top / total * r.height) + 'px';
+    miniMapViewport.style.height = Math.max(20, view / total * r.height) + 'px';
+  }
+  setInterval(refreshMiniMap, 600);
+  document.querySelector('.workspace-main')?.addEventListener('scroll', refreshMiniMap);
+
+  // ============================================================
+  // FEATURE: Compare two documents (line diff)
+  // ============================================================
+  function lineDiff(a, b) {
+    // Simple Myers-style longest common subsequence (small docs only)
+    const al = a.split(/\r?\n/);
+    const bl = b.split(/\r?\n/);
+    const m = al.length, n = bl.length;
+    const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
+    for (let i = m - 1; i >= 0; i--) {
+      for (let j = n - 1; j >= 0; j--) {
+        if (al[i] === bl[j]) dp[i][j] = dp[i + 1][j + 1] + 1;
+        else dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const out = [];
+    let i = 0, j = 0;
+    while (i < m && j < n) {
+      if (al[i] === bl[j]) { out.push({ kind: ' ', text: al[i] }); i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push({ kind: '-', text: al[i] }); i++; }
+      else { out.push({ kind: '+', text: bl[j] }); j++; }
+    }
+    while (i < m) { out.push({ kind: '-', text: al[i++] }); }
+    while (j < n) { out.push({ kind: '+', text: bl[j++] }); }
+    return out;
+  }
+
+  $('#runCompareBtn').addEventListener('click', () => {
+    const other = $('#compareInput').value;
+    const me = editor.innerText;
+    if (!other.trim()) { $('#compareResult').textContent = 'Paste text first.'; return; }
+    if (me.length > 20000 || other.length > 20000) {
+      if (!confirm('Documents are large; comparison may be slow. Continue?')) return;
+    }
+    const diff = lineDiff(me, other);
+    const html = diff.map((d) => {
+      const cls = d.kind === '+' ? 'add' : d.kind === '-' ? 'del' : '';
+      const prefix = d.kind === '+' ? '+ ' : d.kind === '-' ? '- ' : '  ';
+      return cls
+        ? '<div class="' + cls + '">' + escapeHtml(prefix + d.text) + '</div>'
+        : '<div>' + escapeHtml(prefix + d.text) + '</div>';
+    }).join('');
+    $('#compareResult').innerHTML = html;
+  });
+
+  // ============================================================
+  // FEATURE: Word definition + Thesaurus (right-click menu items)
+  // ============================================================
+  function selectedWord() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return '';
+    const t = sel.toString().trim();
+    return /^[\p{L}\p{N}'-]{2,40}$/u.test(t) ? t : '';
+  }
+  // Hook into the existing context menu by wrapping the listener:
+  // The listener is already there; instead we extend it via a delegated listener
+  // that adds extra entries when a word is selected.
+  document.addEventListener('contextmenu', (e) => {
+    if (!editor.contains(e.target)) return;
+    const w = selectedWord();
+    if (!w) return;
+    setTimeout(() => {
+      const menu = document.querySelector('.context-menu');
+      if (!menu) return;
+      const hr = document.createElement('hr');
+      menu.appendChild(hr);
+      const def = document.createElement('button');
+      def.type = 'button';
+      def.innerHTML = 'Define "' + escapeHtml(w) + '"';
+      def.addEventListener('click', () => {
+        window.open('https://www.merriam-webster.com/dictionary/' +
+          encodeURIComponent(w), '_blank', 'noopener');
+        menu.remove();
+      });
+      menu.appendChild(def);
+      const th = document.createElement('button');
+      th.type = 'button';
+      th.innerHTML = 'Synonyms for "' + escapeHtml(w) + '"';
+      th.addEventListener('click', () => {
+        window.open('https://www.merriam-webster.com/thesaurus/' +
+          encodeURIComponent(w), '_blank', 'noopener');
+        menu.remove();
+      });
+      menu.appendChild(th);
+    }, 10);
+  }, true);
+
+  // ============================================================
+  // FEATURE: Watermark
+  // ============================================================
+  const STORE_WM = 'rodmanword:watermark';
+  const watermarkOverlay = $('#watermarkOverlay');
+
+  function applyWatermark() {
+    let v = {};
+    try { v = JSON.parse(localStorage.getItem(STORE_WM) || '{}'); } catch {}
+    if (v.on && v.text) {
+      watermarkOverlay.textContent = v.text;
+      watermarkOverlay.hidden = false;
+    } else {
+      watermarkOverlay.hidden = true;
+    }
+  }
+  applyWatermark();
+
+  $('#watermarkBtn')?.addEventListener('click', () => {
+    let v = {};
+    try { v = JSON.parse(localStorage.getItem(STORE_WM) || '{}'); } catch {}
+    $('#watermarkText').value = v.text || 'DRAFT';
+    $('#watermarkOn').checked = !!v.on;
+    openModal($('#watermarkModal'));
+  });
+
+  $('#saveWatermarkBtn').addEventListener('click', () => {
+    const v = {
+      text: $('#watermarkText').value.trim() || 'DRAFT',
+      on: $('#watermarkOn').checked,
+    };
+    try { localStorage.setItem(STORE_WM, JSON.stringify(v)); } catch {}
+    applyWatermark();
+    closeModal($('#watermarkModal'));
+  });
+
+  // ============================================================
+  // FEATURE: Readability stats (Flesch reading ease)
+  // ============================================================
+  function countSyllables(word) {
+    word = word.toLowerCase().replace(/[^a-z]/g, '');
+    if (!word) return 0;
+    if (word.length <= 3) return 1;
+    word = word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '');
+    word = word.replace(/^y/, '');
+    const matches = word.match(/[aeiouy]{1,2}/g);
+    return matches ? matches.length : 1;
+  }
+
+  function readabilityStats() {
+    const text = (editor.innerText || '').trim();
+    if (!text) return null;
+    const words = text.split(/\s+/).filter(Boolean);
+    const sentences = (text.match(/[.!?…]+(?=\s|$)/g) || []).length || 1;
+    const syllables = words.reduce((s, w) => s + countSyllables(w), 0);
+    const wpm = words.length / sentences;
+    const spw = syllables / Math.max(1, words.length);
+    const flesch = 206.835 - 1.015 * wpm - 84.6 * spw;
+    const grade = 0.39 * wpm + 11.8 * spw - 15.59;
+    return {
+      flesch: flesch.toFixed(1),
+      grade: grade.toFixed(1),
+      sentences,
+      words: words.length,
+      syllables,
+      avgWordsPerSentence: wpm.toFixed(1),
+      avgSyllablesPerWord: spw.toFixed(2),
+    };
+  }
+
+  function fleschLabel(score) {
+    score = parseFloat(score);
+    if (score >= 90) return 'Very easy (5th grade)';
+    if (score >= 80) return 'Easy (6th)';
+    if (score >= 70) return 'Fairly easy (7th)';
+    if (score >= 60) return 'Standard (8–9th)';
+    if (score >= 50) return 'Fairly difficult (10–12th)';
+    if (score >= 30) return 'Difficult (college)';
+    return 'Very difficult (graduate)';
+  }
+
+  // Extend the existing word-count modal with readability stats
+  const origRenderCount = renderCountModal;
+  renderCountModal = function () {
+    origRenderCount();
+    const r = readabilityStats();
+    if (!r) return;
+    const extra =
+      '<hr style="margin:6px 0;border:none;border-top:1px solid var(--ribbon-border)"/>' +
+      '<div class="row"><span>Avg. words / sentence</span><b>' + r.avgWordsPerSentence + '</b></div>' +
+      '<div class="row"><span>Avg. syllables / word</span><b>' + r.avgSyllablesPerWord + '</b></div>' +
+      '<div class="row"><span>Flesch reading ease</span><b>' + r.flesch + '<small style="color:var(--muted);font-weight:400"> &nbsp;' + fleschLabel(r.flesch) + '</small></b></div>' +
+      '<div class="row"><span>Flesch-Kincaid grade</span><b>' + r.grade + '</b></div>';
+    countBody.innerHTML += extra;
+  };
+
+  // ============================================================
+  // FEATURE: Mail merge ({{Field}} + CSV)
+  // ============================================================
+  function parseCsv(txt) {
+    const rows = [];
+    let i = 0, cell = '', row = [], inQuote = false;
+    while (i < txt.length) {
+      const c = txt[i];
+      if (inQuote) {
+        if (c === '"' && txt[i + 1] === '"') { cell += '"'; i += 2; continue; }
+        if (c === '"') { inQuote = false; i++; continue; }
+        cell += c; i++; continue;
+      }
+      if (c === '"') { inQuote = true; i++; continue; }
+      if (c === ',') { row.push(cell); cell = ''; i++; continue; }
+      if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; i++; continue; }
+      if (c === '\r') { i++; continue; }
+      cell += c; i++;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+
+  $('#runMergeBtn').addEventListener('click', () => {
+    const csv = $('#mergeCsv').value;
+    const rows = parseCsv(csv).filter((r) => r.some((c) => c.trim()));
+    if (rows.length < 2) {
+      $('#mergeStatus').textContent = 'CSV needs a header row and at least one data row.';
+      return;
+    }
+    const headers = rows[0].map((h) => h.trim());
+    const data = rows.slice(1);
+    const tplHtml = editor.innerHTML;
+    const tplTitle = docTitle.value || 'Document';
+
+    // Combine into a single HTML file with one section per row
+    let combined = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
+      escapeHtml(tplTitle) + ' (mail merge)</title>' +
+      '<style>body{font-family:Calibri,Arial,sans-serif;max-width:8.5in;margin:1in auto;padding:0 1in;line-height:1.5}' +
+      'h1,h2,h3{color:#2b579a}.merge-item{page-break-after:always}</style></head><body>';
+    data.forEach((rowVals, idx) => {
+      let out = tplHtml;
+      headers.forEach((h, j) => {
+        const re = new RegExp('\\{\\{\\s*' + h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\}\\}', 'g');
+        out = out.replace(re, escapeHtml(rowVals[j] || ''));
+      });
+      combined += '<div class="merge-item">' + out + '</div>';
+    });
+    combined += '</body></html>';
+    downloadBlob(combined, sanitizeFileName(tplTitle) + '_merged.html', 'text/html');
+    $('#mergeStatus').textContent = 'Generated ' + data.length + ' documents (' + headers.length + ' fields).';
+    toast('Mail merge: ' + data.length + ' documents created', 'success');
+  });
+
+  // ============================================================
+  // FEATURE: Bookmarks (named anchors + jump menu)
+  // ============================================================
+  const bookmarkBtn = $('#bookmarkBtn');
+  const bookmarksMenuBtn = $('#bookmarksMenuBtn');
+  const bookmarksPopup = $('#bookmarksPopup');
+
+  if (bookmarkBtn) {
+    bookmarkBtn.addEventListener('click', () => {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || !editor.contains(sel.anchorNode)) {
+        toast('Place the cursor in the document first', 'info');
+        return;
+      }
+      const name = prompt('Bookmark name:');
+      if (!name) return;
+      const id = 'rwd-bm-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      // Remove any existing bookmark with the same id
+      const old = document.getElementById(id);
+      if (old && old.classList.contains('rwd-bookmark')) {
+        const p = old.parentNode;
+        while (old.firstChild) p.insertBefore(old.firstChild, old);
+        p.removeChild(old);
+      }
+      const span = document.createElement('span');
+      span.className = 'rwd-bookmark';
+      span.id = id;
+      span.dataset.name = name;
+      span.textContent = name;
+      const range = sel.getRangeAt(0);
+      range.collapse(true);
+      range.insertNode(span);
+      // Caret after
+      const r = document.createRange();
+      r.setStartAfter(span);
+      r.setEndAfter(span);
+      sel.removeAllRanges();
+      sel.addRange(r);
+      queueAutosave();
+      toast('Bookmark "' + name + '" added', 'success');
+    });
+  }
+
+  if (bookmarksMenuBtn) {
+    bookmarksMenuBtn.addEventListener('click', () => {
+      const list = editor.querySelectorAll('.rwd-bookmark');
+      bookmarksPopup.innerHTML = '';
+      if (!list.length) {
+        bookmarksPopup.innerHTML = '<div class="empty">No bookmarks yet</div>';
+      } else {
+        list.forEach((bm) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = bm.dataset.name || bm.id;
+          b.addEventListener('click', () => {
+            bm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const r = document.createRange();
+            r.selectNodeContents(bm);
+            r.collapse(false);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(r);
+            bookmarksPopup.hidden = true;
+          });
+          bookmarksPopup.appendChild(b);
+        });
+        const hr = document.createElement('hr');
+        hr.style.cssText = 'border:none;border-top:1px solid var(--ribbon-border);margin:4px 0';
+        bookmarksPopup.appendChild(hr);
+        const clear = document.createElement('button');
+        clear.type = 'button';
+        clear.textContent = '🗑 Remove all bookmarks';
+        clear.addEventListener('click', () => {
+          editor.querySelectorAll('.rwd-bookmark').forEach((b) => {
+            const p = b.parentNode;
+            while (b.firstChild) p.insertBefore(b.firstChild, b);
+            p.removeChild(b);
+          });
+          queueAutosave();
+          bookmarksPopup.hidden = true;
+        });
+        bookmarksPopup.appendChild(clear);
+      }
+      const r = bookmarksMenuBtn.getBoundingClientRect();
+      bookmarksPopup.style.left = r.left + 'px';
+      bookmarksPopup.style.top = (r.bottom + 4) + 'px';
+      bookmarksPopup.hidden = false;
+      setTimeout(() => {
+        document.addEventListener('mousedown', (ev) => {
+          if (!bookmarksPopup.contains(ev.target) && ev.target !== bookmarksMenuBtn) {
+            bookmarksPopup.hidden = true;
+          }
+        }, { once: true });
+      }, 0);
+    });
+  }
+
+  // ============================================================
+  // FEATURE: Pull quote
+  // ============================================================
+  $('#pullQuoteBtn')?.addEventListener('click', () => {
+    const sel = window.getSelection();
+    let text = '';
+    if (sel && !sel.isCollapsed) text = sel.toString();
+    if (!text) text = prompt('Quote:', '') || '';
+    if (!text) return;
+    const author = prompt('Attribution (optional):', '') || '';
+    const html = '<blockquote class="pull-quote">' + escapeHtml(text) +
+      (author ? '<span class="attribution">— ' + escapeHtml(author) + '</span>' : '') +
+      '</blockquote><p><br/></p>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // ============================================================
+  // FEATURE: Code block with language
+  // ============================================================
+  $('#codeBlockBtn')?.addEventListener('click', () => {
+    const lang = prompt('Language (e.g. js, python):', 'js') || 'text';
+    const sel = window.getSelection();
+    const code = sel && !sel.isCollapsed ? sel.toString() : '// your code here';
+    const html = '<pre class="lang-block" data-lang="' + escapeHtml(lang) + '">' +
+      escapeHtml(code) + '</pre><p><br/></p>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // ============================================================
+  // FEATURE: Word art (decorative title)
+  // ============================================================
+  $('#wordArtBtn')?.addEventListener('click', () => {
+    const sel = window.getSelection();
+    let text = sel && !sel.isCollapsed ? sel.toString() : prompt('Title text:', '') || '';
+    if (!text) return;
+    const html = '<p class="word-art">' + escapeHtml(text) + '</p>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // ============================================================
+  // FEATURE: Sort selection (alphabetize lines / list items)
+  // ============================================================
+  function sortSelectedLines(reverse) {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) {
+      toast('Select multiple lines or list items first', 'info');
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    // Try to detect if all selected items are list items
+    const items = [];
+    const start = range.startContainer.nodeType === 1
+      ? range.startContainer
+      : range.startContainer.parentElement;
+    const startLi = start.closest('li');
+    if (startLi && range.endContainer && editor.contains(range.endContainer)) {
+      const endLi = (range.endContainer.nodeType === 1
+        ? range.endContainer
+        : range.endContainer.parentElement).closest('li');
+      if (endLi && startLi.parentNode === endLi.parentNode) {
+        let n = startLi;
+        while (n) {
+          items.push(n);
+          if (n === endLi) break;
+          n = n.nextElementSibling;
+        }
+        if (items.length >= 2) {
+          const sorted = [...items].sort((a, b) => {
+            const av = a.textContent.toLowerCase();
+            const bv = b.textContent.toLowerCase();
+            return reverse ? bv.localeCompare(av) : av.localeCompare(bv);
+          });
+          const parent = startLi.parentNode;
+          sorted.forEach((li) => parent.appendChild(li));
+          queueAutosave();
+          return;
+        }
+      }
+    }
+    // Plain text: split by newline
+    const text = sel.toString();
+    const lines = text.split(/\r?\n/);
+    if (lines.length < 2) { toast('Select multiple lines first', 'info'); return; }
+    const sorted = lines.slice().sort((a, b) =>
+      reverse ? b.localeCompare(a) : a.localeCompare(b)
+    );
+    document.execCommand('insertText', false, sorted.join('\n'));
+    queueAutosave();
+  }
 
   // ============================================================
   // IMPROVEMENT: Drop cap toggle on current paragraph
@@ -2006,6 +2760,12 @@ ${editor.innerHTML}
           cap.textContent = v;
         }
       }
+    } else if (a === 'rotate-l' || a === 'rotate-r') {
+      const cur = parseInt(selectedImg.dataset.rotate || '0', 10);
+      const next = (cur + (a === 'rotate-r' ? 90 : -90)) % 360;
+      const norm = (next + 360) % 360;
+      selectedImg.dataset.rotate = norm;
+      selectedImg.style.transform = 'rotate(' + norm + 'deg)';
     } else if (a === 'alt') {
       const v = prompt('Alt text:', selectedImg.alt || '');
       if (v !== null) selectedImg.alt = v;
