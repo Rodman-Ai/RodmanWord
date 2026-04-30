@@ -5,7 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#2b579a" />
   <title>RodmanWord</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
 </head>
 <body>
   <header class="title-bar">
@@ -166,6 +175,14 @@
       </div>
       <div class="group">
         <div class="group-row">
+          <button class="ribbon-btn wide" id="insertTocBtn" title="Insert table of contents">📑 TOC</button>
+          <button class="ribbon-btn wide" id="insertFootnoteBtn" title="Insert footnote">⁺¹ Footnote</button>
+          <button class="ribbon-btn wide" id="dropCapBtn" title="Toggle drop cap on paragraph">A Drop cap</button>
+        </div>
+        <div class="group-label">Layout</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
           <button class="ribbon-btn wide" id="pageBreakBtn">¶ Page break</button>
           <button class="ribbon-btn wide" id="dictateBtn" title="Voice dictation">🎙 Dictate</button>
           <button class="ribbon-btn wide" id="loremBtn" title="Lorem ipsum">📝 Lorem</button>
@@ -240,9 +257,14 @@
       </div>
       <div class="group">
         <div class="group-row">
-          <label class="control switch">
-            <input type="checkbox" id="darkMode" />
-            <span>Dark mode</span>
+          <label class="control">
+            Theme
+            <select id="themeSelect" class="select">
+              <option value="">Light</option>
+              <option value="dark">Dark</option>
+              <option value="sepia">Sepia</option>
+              <option value="contrast">High contrast</option>
+            </select>
           </label>
           <label class="control switch">
             <input type="checkbox" id="rulerToggle" checked />
@@ -251,6 +273,14 @@
           <label class="control switch">
             <input type="checkbox" id="outlineToggle" />
             <span>Navigation</span>
+          </label>
+          <label class="control switch">
+            <input type="checkbox" id="spellToggle" checked />
+            <span>Spell check</span>
+          </label>
+          <label class="control switch" style="display:none">
+            <input type="checkbox" id="darkMode" />
+            <span>Dark mode</span>
           </label>
         </div>
         <div class="group-label">Display</div>
@@ -368,9 +398,14 @@
         <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
       </header>
       <div class="modal-body">
-        <label>Find <input id="findInput" type="text" /></label>
+        <label>Find <input id="findInput" type="text" list="findHistory" /></label>
+        <datalist id="findHistory"></datalist>
         <label>Replace <input id="replaceInput" type="text" /></label>
-        <label class="row"><input type="checkbox" id="matchCase" /> Match case</label>
+        <div style="display:flex;gap:14px;flex-wrap:wrap">
+          <label class="row"><input type="checkbox" id="matchCase" /> Match case</label>
+          <label class="row"><input type="checkbox" id="matchWord" /> Whole word</label>
+          <label class="row"><input type="checkbox" id="matchRegex" /> Regex</label>
+        </div>
         <p id="findCount" class="muted"></p>
       </div>
       <footer>
@@ -568,7 +603,13 @@
     <button data-iact="small">Small</button>
     <button data-iact="medium">Medium</button>
     <button data-iact="full">Full</button>
-    <button data-iact="alt">Alt text…</button>
+    <span style="width:1px;background:var(--ribbon-border)"></span>
+    <button data-iact="align-left" title="Align left">⯇</button>
+    <button data-iact="align-center" title="Center">⯀</button>
+    <button data-iact="align-right" title="Align right">⯈</button>
+    <span style="width:1px;background:var(--ribbon-border)"></span>
+    <button data-iact="caption">Caption…</button>
+    <button data-iact="alt">Alt…</button>
     <button data-iact="delete">🗑</button>
   </div>
 

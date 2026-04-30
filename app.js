@@ -391,6 +391,48 @@
     savePrefs();
   });
 
+  // ============================================================
+  // IMPROVEMENT: Spell-check toggle
+  // ============================================================
+  const spellToggle = $('#spellToggle');
+  if (spellToggle) {
+    const stored = localStorage.getItem('rodmanword:spell');
+    if (stored === '0') spellToggle.checked = false;
+    editor.spellcheck = spellToggle.checked;
+    spellToggle.addEventListener('change', () => {
+      editor.spellcheck = spellToggle.checked;
+      localStorage.setItem('rodmanword:spell', spellToggle.checked ? '1' : '0');
+    });
+  }
+
+  // ============================================================
+  // IMPROVEMENT: Theme picker (Light / Dark / Sepia / High contrast)
+  // ============================================================
+  const themeSelect = $('#themeSelect');
+  if (themeSelect) {
+    const storedTheme = localStorage.getItem('rodmanword:theme') || '';
+    themeSelect.value = storedTheme;
+    document.documentElement.dataset.theme = storedTheme;
+    if (darkMode) darkMode.checked = storedTheme === 'dark';
+    themeSelect.addEventListener('change', () => {
+      document.documentElement.dataset.theme = themeSelect.value;
+      if (darkMode) darkMode.checked = themeSelect.value === 'dark';
+      localStorage.setItem('rodmanword:theme', themeSelect.value);
+    });
+  }
+
+  // ============================================================
+  // IMPROVEMENT: Ctrl/Cmd + Click on a link opens it in a new tab
+  // ============================================================
+  editor.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a[href]');
+    if (!a) return;
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      window.open(a.href, '_blank', 'noopener');
+    }
+  });
+
   // ---------- Word/char count ----------
   function updateCounts() {
     const text = editor.innerText.trim();
@@ -990,15 +1032,52 @@ ${editor.innerHTML}
     findCursor = -1;
   }
 
+  // Find search history
+  const STORE_FIND_HISTORY = 'rodmanword:findHistory';
+  function addFindHistory(term) {
+    if (!term) return;
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem(STORE_FIND_HISTORY) || '[]'); } catch {}
+    list = [term, ...list.filter((x) => x !== term)].slice(0, 10);
+    try { localStorage.setItem(STORE_FIND_HISTORY, JSON.stringify(list)); } catch {}
+    refreshFindHistoryUI();
+  }
+  function refreshFindHistoryUI() {
+    const dl = document.getElementById('findHistory');
+    if (!dl) return;
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem(STORE_FIND_HISTORY) || '[]'); } catch {}
+    dl.innerHTML = list.map((t) => '<option value="' + escapeHtml(t) + '"></option>').join('');
+  }
+  refreshFindHistoryUI();
+
   function rerunFind() {
     clearFindMarks();
     const term = $('#findInput').value;
     if (!term) { findCount.textContent = ''; return; }
     const matchCase = $('#matchCase').checked;
-    const re = new RegExp(
-      term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-      matchCase ? 'g' : 'gi'
-    );
+    const matchWord = $('#matchWord') && $('#matchWord').checked;
+    const matchRegex = $('#matchRegex') && $('#matchRegex').checked;
+    let pattern;
+    try {
+      if (matchRegex) {
+        pattern = term;
+      } else {
+        pattern = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (matchWord) pattern = '\\b' + pattern + '\\b';
+      }
+    } catch {
+      findCount.textContent = 'Invalid pattern';
+      return;
+    }
+    let re;
+    try {
+      re = new RegExp(pattern, matchCase ? 'g' : 'gi');
+    } catch {
+      findCount.textContent = 'Invalid regex';
+      return;
+    }
+    addFindHistory(term);
     const textNodes = [];
     const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, {
       acceptNode: (n) => {
@@ -1061,6 +1140,8 @@ ${editor.innerHTML}
     window.__rwdFindT = setTimeout(rerunFind, 200);
   });
   $('#matchCase').addEventListener('change', rerunFind);
+  if ($('#matchWord')) $('#matchWord').addEventListener('change', rerunFind);
+  if ($('#matchRegex')) $('#matchRegex').addEventListener('change', rerunFind);
 
   $('#findNextBtn').addEventListener('click', () => {
     if (!findMarks.length) return rerunFind();
@@ -1351,6 +1432,152 @@ ${editor.innerHTML}
     const entry = { title, at: new Date().toISOString(), size };
     list = [entry, ...list.filter((x) => x.title !== title)].slice(0, 10);
     localStorage.setItem(STORE_RECENT, JSON.stringify(list));
+  };
+
+  // ============================================================
+  // IMPROVEMENT: Drop cap toggle on current paragraph
+  // ============================================================
+  const dropCapBtn = $('#dropCapBtn');
+  if (dropCapBtn) {
+    dropCapBtn.addEventListener('click', () => {
+      const sel = window.getSelection();
+      if (!sel || !sel.anchorNode) return;
+      let n = sel.anchorNode;
+      if (n.nodeType !== 1) n = n.parentElement;
+      const para = n.closest('p, blockquote, pre, h1, h2, h3, h4, li');
+      if (!para) {
+        toast('Place the cursor in a paragraph first', 'info');
+        return;
+      }
+      para.classList.toggle('drop-cap');
+      queueAutosave();
+    });
+  }
+
+  // ============================================================
+  // IMPROVEMENT: Auto-TOC inserted at cursor
+  // ============================================================
+  const insertTocBtn = $('#insertTocBtn');
+  if (insertTocBtn) {
+    insertTocBtn.addEventListener('click', () => {
+      const headings = editor.querySelectorAll('h1, h2, h3');
+      if (!headings.length) {
+        toast('Add some headings first', 'info');
+        return;
+      }
+      // Remove any prior TOC inserted by us
+      const old = editor.querySelector('.rwd-toc');
+      if (old) old.remove();
+      let html = '<div class="rwd-toc"><h3>Table of contents</h3><ol>';
+      headings.forEach((h, i) => {
+        if (!h.id) h.id = 'rwd-h-' + i;
+        html += '<li class="lvl-' + h.tagName.charAt(1) + '">' +
+          '<a href="#' + h.id + '">' + escapeHtml(h.textContent || '') + '</a></li>';
+      });
+      html += '</ol></div><p><br/></p>';
+      restoreSelection();
+      document.execCommand('insertHTML', false, html);
+      queueAutosave();
+      toast('Inserted table of contents', 'success');
+    });
+  }
+
+  // ============================================================
+  // IMPROVEMENT: Footnotes (auto-numbered)
+  // ============================================================
+  const insertFootnoteBtn = $('#insertFootnoteBtn');
+  if (insertFootnoteBtn) {
+    insertFootnoteBtn.addEventListener('click', () => {
+      const text = prompt('Footnote text:', '');
+      if (!text) return;
+      restoreSelection();
+      // Determine next footnote number
+      const existing = editor.querySelectorAll('.rwd-fn-ref');
+      const num = existing.length + 1;
+      // Ensure footnotes container exists at the end of the editor
+      let container = editor.querySelector('.rwd-footnotes');
+      if (!container) {
+        container = document.createElement('div');
+        container.className = 'rwd-footnotes';
+        container.contentEditable = 'true';
+        container.innerHTML = '<h4 contenteditable="false">Footnotes</h4><ol></ol>';
+        editor.appendChild(container);
+      }
+      const ol = container.querySelector('ol');
+      const id = 'rwd-fn-' + Date.now() + '-' + num;
+      const li = document.createElement('li');
+      li.id = id;
+      li.textContent = text;
+      ol.appendChild(li);
+      const ref = '<sup class="rwd-fn-ref" title="' + escapeHtml(text) +
+        '" data-fn="' + id + '">' + num + '</sup>';
+      document.execCommand('insertHTML', false, ref);
+      queueAutosave();
+    });
+  }
+
+  // Click footnote ref → jump
+  editor.addEventListener('click', (e) => {
+    const sup = e.target.closest && e.target.closest('.rwd-fn-ref');
+    if (!sup) return;
+    const id = sup.dataset.fn;
+    if (!id) return;
+    const li = document.getElementById(id);
+    if (li) li.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  // ============================================================
+  // IMPROVEMENT: Inline math via $...$
+  // ============================================================
+  function processInlineMath() {
+    if (!autoCorrectToggle.checked) return;
+    const ctx = getCaretTextBefore();
+    if (!ctx) return;
+    const { node, text, offset } = ctx;
+    const before = text.slice(0, offset - 1);
+    const m = before.match(/\$([^$\n]{1,80})\$$/);
+    if (!m) return;
+    const start = offset - 1 - m[0].length;
+    const r = document.createRange();
+    r.setStart(node, start);
+    r.setEnd(node, offset - 1);
+    r.deleteContents();
+    const span = document.createElement('span');
+    span.className = 'rwd-math';
+    span.textContent = m[1]
+      .replace(/\\alpha/g, 'α').replace(/\\beta/g, 'β').replace(/\\gamma/g, 'γ')
+      .replace(/\\delta/g, 'δ').replace(/\\theta/g, 'θ').replace(/\\lambda/g, 'λ')
+      .replace(/\\mu/g, 'µ').replace(/\\pi/g, 'π').replace(/\\sigma/g, 'σ')
+      .replace(/\\phi/g, 'φ').replace(/\\omega/g, 'ω').replace(/\\sum/g, '∑')
+      .replace(/\\int/g, '∫').replace(/\\sqrt/g, '√').replace(/\\infty/g, '∞')
+      .replace(/\\pm/g, '±').replace(/\\le/g, '≤').replace(/\\ge/g, '≥')
+      .replace(/\\ne/g, '≠').replace(/\\to/g, '→');
+    r.insertNode(span);
+    placeCaretAfter(span);
+  }
+  editor.addEventListener('input', (e) => {
+    if (e.inputType === 'insertText' && e.data === ' ') {
+      processInlineMath();
+    }
+  });
+
+  // ============================================================
+  // IMPROVEMENT: Writing-goal completion celebration
+  // ============================================================
+  let goalCelebrated = false;
+  const _origRefreshGoal = refreshGoal;
+  refreshGoal = function () {
+    _origRefreshGoal();
+    if (writingGoal <= 0) { goalCelebrated = false; return; }
+    const words = calcStats().words;
+    if (words >= writingGoal && !goalCelebrated) {
+      goalCelebrated = true;
+      toast('🎉 Goal reached! ' + words + ' / ' + writingGoal + ' words', 'success', 4000);
+      goalFill.classList.add('celebrate');
+      setTimeout(() => goalFill.classList.remove('celebrate'), 4000);
+    } else if (words < writingGoal) {
+      goalCelebrated = false;
+    }
   };
 
   // ============================================================
@@ -1742,14 +1969,49 @@ ${editor.innerHTML}
     const btn = e.target.closest('button');
     if (!btn || !selectedImg) return;
     const a = btn.dataset.iact;
+    const target = selectedImg.parentElement && selectedImg.parentElement.tagName === 'FIGURE'
+      ? selectedImg.parentElement : selectedImg;
+
     if (a === 'small' || a === 'medium' || a === 'full') {
       selectedImg.classList.remove('rwd-img-small', 'rwd-img-medium', 'rwd-img-full');
       selectedImg.classList.add('rwd-img-' + a);
+    } else if (a === 'align-left' || a === 'align-center' || a === 'align-right') {
+      target.classList.remove('rwd-img-left', 'rwd-img-center', 'rwd-img-right');
+      target.classList.add('rwd-img-' + a.replace('align-', ''));
+    } else if (a === 'caption') {
+      let figure = selectedImg.closest('figure');
+      let cap = figure ? figure.querySelector('figcaption') : null;
+      const current = cap ? cap.textContent : '';
+      const v = prompt('Caption:', current);
+      if (v === null) return;
+      if (!figure && v.trim()) {
+        figure = document.createElement('figure');
+        const parent = selectedImg.parentNode;
+        parent.insertBefore(figure, selectedImg);
+        figure.appendChild(selectedImg);
+      }
+      if (figure) {
+        cap = figure.querySelector('figcaption');
+        if (!v.trim()) {
+          if (cap) cap.remove();
+          if (figure.children.length === 1) {
+            figure.parentNode.insertBefore(figure.firstElementChild, figure);
+            figure.remove();
+          }
+        } else {
+          if (!cap) {
+            cap = document.createElement('figcaption');
+            figure.appendChild(cap);
+          }
+          cap.textContent = v;
+        }
+      }
     } else if (a === 'alt') {
       const v = prompt('Alt text:', selectedImg.alt || '');
       if (v !== null) selectedImg.alt = v;
     } else if (a === 'delete') {
-      selectedImg.remove();
+      const fig = selectedImg.closest('figure');
+      (fig || selectedImg).remove();
       selectedImg = null;
       imageBar.hidden = true;
     }
@@ -2776,6 +3038,114 @@ ${editor.innerHTML}
     node.nodeValue =
       text.slice(0, startOf) + m[2].toUpperCase() + text.slice(startOf + 1);
   }
+
+  // ============================================================
+  // IMPROVEMENT: Move paragraph / line up & down (Alt+↑/↓ ; Alt+Shift+↑/↓)
+  // ============================================================
+  editor.addEventListener('keydown', (e) => {
+    if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.anchorNode || !editor.contains(sel.anchorNode)) return;
+    let n = sel.anchorNode;
+    if (n.nodeType !== 1) n = n.parentElement;
+    const block = n.closest('h1,h2,h3,h4,h5,h6,p,blockquote,pre,li,div');
+    if (!block || !block.parentNode || block === editor) return;
+    e.preventDefault();
+    const sib = e.key === 'ArrowUp' ? block.previousElementSibling : block.nextElementSibling;
+    if (!sib) return;
+    if (e.key === 'ArrowUp') sib.parentNode.insertBefore(block, sib);
+    else block.parentNode.insertBefore(sib, block);
+    // Restore caret to the moved block
+    const r = document.createRange();
+    r.selectNodeContents(block);
+    r.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    queueAutosave();
+  });
+
+  // ============================================================
+  // IMPROVEMENT: TSV/CSV smart paste → table
+  // ============================================================
+  editor.addEventListener('paste', (e) => {
+    const cd = e.clipboardData;
+    if (!cd) return;
+    if (e.defaultPrevented) return;
+    const txt = cd.getData('text/plain');
+    if (!txt) return;
+    // Heuristic: at least 2 lines, every line has the same separator (tab or comma) ≥ 2 occurrences
+    const lines = txt.replace(/\r/g, '').split('\n').filter((l) => l.length);
+    if (lines.length < 2) return;
+    let sep = null;
+    if (lines.every((l) => l.includes('\t'))) sep = '\t';
+    else if (lines.every((l) => /,/.test(l)) && lines.every((l) => l.split(',').length >= 2)) sep = ',';
+    if (!sep) return;
+    const cells = lines.map((l) => l.split(sep));
+    const cols = Math.max(...cells.map((r) => r.length));
+    if (cols < 2) return;
+    e.preventDefault();
+    let html = '<table class="bordered"><tbody>';
+    cells.forEach((row, idx) => {
+      const tag = idx === 0 ? 'th' : 'td';
+      html += '<tr>';
+      for (let c = 0; c < cols; c++) {
+        html += '<' + tag + '>' + escapeHtml(row[c] || '&nbsp;') + '</' + tag + '>';
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table><p><br/></p>';
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // ============================================================
+  // IMPROVEMENT: Inline symbol shortcuts (-->, (c), (r), (tm), <-, etc.)
+  // ============================================================
+  const SYMBOL_SHORTCUTS = [
+    [/-->$/, '→'],
+    [/<--$/, '←'],
+    [/==>$/, '⇒'],
+    [/<==$/, '⇐'],
+    [/<->$/, '↔'],
+    [/\(c\)$/i, '©'],
+    [/\(r\)$/i, '®'],
+    [/\(tm\)$/i, '™'],
+    [/\+\-$/, '±'],
+    [/!=$/, '≠'],
+    [/<=$/, '≤'],
+    [/>=$/, '≥'],
+    [/\.\.\.$/, '…'],
+  ];
+
+  function applySymbolShortcuts() {
+    if (!autoCorrectToggle.checked) return;
+    const ctx = getCaretTextBefore();
+    if (!ctx) return;
+    const { node, text, offset } = ctx;
+    const before = text.slice(0, offset - 1);
+    for (const [re, sym] of SYMBOL_SHORTCUTS) {
+      const m = before.match(re);
+      if (m) {
+        const start = offset - 1 - m[0].length;
+        node.nodeValue = text.slice(0, start) + sym + text.slice(offset - 1);
+        const newOffset = start + sym.length + 1; // include the trailing space
+        const sel = window.getSelection();
+        const r = document.createRange();
+        r.setStart(node, newOffset);
+        r.setEnd(node, newOffset);
+        sel.removeAllRanges();
+        sel.addRange(r);
+        return;
+      }
+    }
+  }
+
+  // Hook into the existing input listener
+  editor.addEventListener('input', (e) => {
+    if (e.inputType === 'insertText' && (e.data === ' ' || e.data === '\n')) {
+      applySymbolShortcuts();
+    }
+  });
 
   // Auto-pair brackets/quotes when text is selected
   editor.addEventListener('keydown', (e) => {
