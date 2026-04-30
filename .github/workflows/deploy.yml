@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - claude/build-word-clone-cXSXu
   workflow_dispatch:
 
 permissions:
