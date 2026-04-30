@@ -168,8 +168,24 @@
         <div class="group-row">
           <button class="ribbon-btn wide" id="pageBreakBtn">¶ Page break</button>
           <button class="ribbon-btn wide" id="dictateBtn" title="Voice dictation">🎙 Dictate</button>
+          <button class="ribbon-btn wide" id="loremBtn" title="Lorem ipsum">📝 Lorem</button>
         </div>
         <div class="group-label">More</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn wide" id="commentBtn" title="Add comment to selection">💬 Comment</button>
+          <button class="ribbon-btn wide" id="quickPartsBtn" title="Insert saved snippet">⚡ Quick parts</button>
+          <select class="select" id="changeCase" title="Change case" aria-label="Change case">
+            <option value="">Aa Change case…</option>
+            <option value="upper">UPPERCASE</option>
+            <option value="lower">lowercase</option>
+            <option value="title">Title Case</option>
+            <option value="sentence">Sentence case</option>
+            <option value="toggle">tOGGLE cASE</option>
+          </select>
+        </div>
+        <div class="group-label">Editing</div>
       </div>
     </div>
 
@@ -242,8 +258,19 @@
       <div class="group">
         <div class="group-row">
           <button class="ribbon-btn wide" id="focusBtn2" title="Focus mode (F11)">⛶ Focus</button>
+          <button class="ribbon-btn wide" id="readingModeBtn" title="Read-only reading view">📖 Read</button>
+          <button class="ribbon-btn wide" id="readAloudBtn" title="Read aloud (text-to-speech)">🔊 Read aloud</button>
         </div>
         <div class="group-label">Mode</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <label class="control switch">
+            <input type="checkbox" id="autoCorrectToggle" />
+            <span>Auto-correct</span>
+          </label>
+        </div>
+        <div class="group-label">Assist</div>
       </div>
     </div>
   </section>
@@ -262,6 +289,9 @@
         <li><button data-action="print">Print / PDF</button></li>
         <li><button data-action="recent">Recent</button></li>
         <li><button data-action="history">Version history</button></li>
+        <li><button data-action="properties">Properties</button></li>
+        <li><button data-action="share">Share link</button></li>
+        <li><button data-action="goal">Writing goal</button></li>
         <li><button data-action="about">About</button></li>
       </ul>
     </aside>
@@ -313,7 +343,12 @@
     <span class="sep">•</span>
     <span id="statusReading">0 min read</span>
     <span class="spacer"></span>
+    <span id="goalIndicator" class="goal-indicator" hidden>
+      <span id="goalLabel">Goal</span>
+      <span class="goal-bar"><span id="goalFill"></span></span>
+    </span>
     <span id="dictationIndicator" hidden>🎙 Listening…</span>
+    <span id="ttsIndicator" hidden>🔊 Speaking…</span>
     <span class="sep" id="formatPainterIndicator" hidden>🖌 Painter armed</span>
     <span id="statusSaved">Saved</span>
   </footer>
@@ -416,6 +451,98 @@
       <footer><button class="btn primary" data-close-modal>Got it</button></footer>
     </div>
   </div>
+
+  <!-- Lorem ipsum dialog -->
+  <div class="modal" id="loremModal" hidden>
+    <div class="modal-card">
+      <header><h3>Insert Lorem ipsum</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <label>Paragraphs <input id="loremCount" type="number" min="1" max="50" value="3" /></label>
+        <label class="row"><input type="checkbox" id="loremShort" /> Short paragraphs</label>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="loremInsertBtn">Insert</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Quick parts dialog -->
+  <div class="modal" id="quickPartsModal" hidden>
+    <div class="modal-card">
+      <header><h3>Quick parts</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p>Save the current selection as a reusable snippet, or insert a saved one.</p>
+        <label>Snippet name <input id="snippetName" type="text" placeholder="e.g. Email signature" /></label>
+        <button class="btn" id="saveSnippetBtn">Save selection as snippet</button>
+        <hr/>
+        <ul id="snippetList" class="snippet-list"></ul>
+      </div>
+      <footer><button class="btn primary" data-close-modal>Done</button></footer>
+    </div>
+  </div>
+
+  <!-- Document properties dialog -->
+  <div class="modal" id="propsModal" hidden>
+    <div class="modal-card">
+      <header><h3>Document properties</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <label>Title <input id="propTitle" type="text" /></label>
+        <label>Author <input id="propAuthor" type="text" /></label>
+        <label>Subject <input id="propSubject" type="text" /></label>
+        <label>Keywords <input id="propKeywords" type="text" placeholder="comma, separated" /></label>
+        <label>Description <input id="propDesc" type="text" /></label>
+        <div id="propStats" class="props-stats"></div>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="savePropsBtn">Save</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Writing goal dialog -->
+  <div class="modal" id="goalModal" hidden>
+    <div class="modal-card">
+      <header><h3>Writing goal</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <label>Target word count <input id="goalTarget" type="number" min="0" value="500" /></label>
+        <p class="muted">A progress bar will show in the status bar. Set to 0 to disable.</p>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="saveGoalBtn">Save</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Comment dialog -->
+  <div class="modal" id="commentModal" hidden>
+    <div class="modal-card">
+      <header><h3>Add comment</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p id="commentSelectionPreview" class="muted"></p>
+        <label>Comment <textarea id="commentText" rows="4"></textarea></label>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="saveCommentBtn">Add</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Reading-mode bar -->
+  <button id="readingExitBtn" class="focus-mode-exit" hidden>Exit reading mode (Esc)</button>
 
   <input type="file" id="filePicker" accept=".rwd,.html,.htm,.txt,.md,application/json" hidden />
   <input type="file" id="imagePicker" accept="image/*" hidden />

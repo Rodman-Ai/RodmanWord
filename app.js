@@ -408,6 +408,18 @@
       case 'history':
         renderHistory();
         break;
+      case 'properties':
+        closeBackstage();
+        openPropsModal();
+        break;
+      case 'share':
+        renderShareView();
+        break;
+      case 'goal':
+        closeBackstage();
+        $('#goalTarget').value = writingGoal || 500;
+        openModal(goalModal);
+        break;
       case 'print':
         closeBackstage();
         setTimeout(() => window.print(), 100);
@@ -466,6 +478,7 @@
         orientation: orientation.value,
         margins: margins.value
       },
+      properties: docProps || {},
       savedAt: new Date().toISOString()
     };
     downloadBlob(
@@ -1422,6 +1435,525 @@ ${editor.innerHTML}
       e.preventDefault();
       openModal($('#shortcutsModal'));
     }
+  });
+
+  // ============================================================
+  // FEATURE: Read aloud (text-to-speech)
+  // ============================================================
+  const ttsIndicator = $('#ttsIndicator');
+  const readAloudBtn = $('#readAloudBtn');
+  const synth = window.speechSynthesis;
+  let ttsSpeaking = false;
+
+  if (!synth) {
+    readAloudBtn.disabled = true;
+    readAloudBtn.title = 'Text-to-speech not supported';
+    readAloudBtn.style.opacity = 0.5;
+  } else {
+    readAloudBtn.addEventListener('click', () => {
+      if (ttsSpeaking) {
+        synth.cancel();
+        return;
+      }
+      const sel = window.getSelection().toString();
+      const text = sel || editor.innerText;
+      if (!text.trim()) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = navigator.language || 'en-US';
+      u.onstart = () => {
+        ttsSpeaking = true;
+        readAloudBtn.classList.add('armed');
+        ttsIndicator.hidden = false;
+      };
+      u.onend = u.onerror = () => {
+        ttsSpeaking = false;
+        readAloudBtn.classList.remove('armed');
+        ttsIndicator.hidden = true;
+      };
+      synth.speak(u);
+    });
+  }
+
+  // ============================================================
+  // FEATURE: Document properties
+  // ============================================================
+  const STORE_PROPS = 'rodmanword:props';
+  let docProps = {};
+  try { docProps = JSON.parse(localStorage.getItem(STORE_PROPS) || '{}'); } catch {}
+
+  const propsModal = $('#propsModal');
+
+  function openPropsModal() {
+    $('#propTitle').value = docProps.title || docTitle.value || '';
+    $('#propAuthor').value = docProps.author || '';
+    $('#propSubject').value = docProps.subject || '';
+    $('#propKeywords').value = docProps.keywords || '';
+    $('#propDesc').value = docProps.description || '';
+    const s = calcStats();
+    $('#propStats').innerHTML =
+      '<div class="row"><span>Words</span><span>' + s.words + '</span></div>' +
+      '<div class="row"><span>Characters</span><span>' + s.chars + '</span></div>' +
+      '<div class="row"><span>Paragraphs</span><span>' + s.paragraphs + '</span></div>' +
+      '<div class="row"><span>Last edit</span><span>' + new Date().toLocaleString() + '</span></div>';
+    openModal(propsModal);
+  }
+
+  $('#savePropsBtn').addEventListener('click', () => {
+    docProps = {
+      title: $('#propTitle').value,
+      author: $('#propAuthor').value,
+      subject: $('#propSubject').value,
+      keywords: $('#propKeywords').value,
+      description: $('#propDesc').value,
+    };
+    try { localStorage.setItem(STORE_PROPS, JSON.stringify(docProps)); } catch {}
+    if (docProps.title) {
+      docTitle.value = docProps.title;
+      queueAutosave();
+    }
+    closeModal(propsModal);
+    flashStatus('Properties saved');
+  });
+
+  // ============================================================
+  // FEATURE: Writing goal
+  // ============================================================
+  const STORE_GOAL = 'rodmanword:goal';
+  const goalIndicator = $('#goalIndicator');
+  const goalLabel = $('#goalLabel');
+  const goalFill = $('#goalFill');
+  const goalModal = $('#goalModal');
+  let writingGoal = parseInt(localStorage.getItem(STORE_GOAL) || '0', 10) || 0;
+
+  function refreshGoal() {
+    if (writingGoal <= 0) {
+      goalIndicator.hidden = true;
+      return;
+    }
+    goalIndicator.hidden = false;
+    const words = calcStats().words;
+    const pct = Math.min(100, Math.round((words / writingGoal) * 100));
+    goalLabel.textContent = words + ' / ' + writingGoal + ' (' + pct + '%)';
+    goalFill.style.width = Math.min(100, pct) + '%';
+    goalFill.classList.toggle('over', words > writingGoal);
+  }
+
+  $('#saveGoalBtn').addEventListener('click', () => {
+    writingGoal = Math.max(0, parseInt($('#goalTarget').value, 10) || 0);
+    try { localStorage.setItem(STORE_GOAL, String(writingGoal)); } catch {}
+    refreshGoal();
+    closeModal(goalModal);
+  });
+
+  setInterval(refreshGoal, 1500);
+  refreshGoal();
+
+  // ============================================================
+  // FEATURE: Auto-correct (smart quotes + common typos)
+  // ============================================================
+  const STORE_AC = 'rodmanword:autocorrect';
+  const autoCorrectToggle = $('#autoCorrectToggle');
+  autoCorrectToggle.checked = localStorage.getItem(STORE_AC) === '1';
+  autoCorrectToggle.addEventListener('change', () => {
+    localStorage.setItem(STORE_AC, autoCorrectToggle.checked ? '1' : '0');
+  });
+
+  const TYPOS = {
+    teh: 'the', Teh: 'The',
+    recieve: 'receive', Recieve: 'Receive',
+    seperate: 'separate', Seperate: 'Separate',
+    definately: 'definitely', Definately: 'Definitely',
+    occured: 'occurred', Occured: 'Occurred',
+    untill: 'until', Untill: 'Until',
+    alot: 'a lot', Alot: 'A lot',
+    accross: 'across', Accross: 'Across',
+    wich: 'which', Wich: 'Which',
+    becuase: 'because', Becuase: 'Because',
+    thier: 'their', Thier: 'Their',
+    youre: "you're", Youre: "You're",
+    cant: "can't", Cant: "Can't",
+    dont: "don't", Dont: "Don't",
+    isnt: "isn't", Isnt: "Isn't",
+    wasnt: "wasn't", Wasnt: "Wasn't",
+    didnt: "didn't", Didnt: "Didn't",
+  };
+
+  function autoCorrectAtCursor() {
+    if (!autoCorrectToggle.checked) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) return;
+    const node = range.startContainer;
+    if (node.nodeType !== 3) return;
+    const text = node.nodeValue;
+    const offset = range.startOffset;
+    if (offset < 2) return;
+    const before = text.slice(0, offset);
+
+    // Replace --|space, ...|space, etc.
+    let updated = before
+      .replace(/(\s|^)--$/, '$1—')
+      .replace(/\.\.\.$/, '…');
+    if (updated !== before) {
+      const newText = updated + text.slice(offset);
+      node.nodeValue = newText;
+      const newOffset = updated.length;
+      range.setStart(node, newOffset);
+      range.setEnd(node, newOffset);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+
+    // Smart quotes: if last char typed is " or ', replace by curly equivalent
+    const last = text[offset - 1];
+    if (last === '"' || last === "'") {
+      const prevChar = offset >= 2 ? text[offset - 2] : '';
+      const isOpening = !prevChar || /\s|[\(\[\{]/.test(prevChar);
+      const replacement = last === '"'
+        ? (isOpening ? '“' : '”')
+        : (isOpening ? '‘' : '’');
+      node.nodeValue = text.slice(0, offset - 1) + replacement + text.slice(offset);
+      range.setStart(node, offset);
+      range.setEnd(node, offset);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+  }
+
+  function autoCorrectOnSpace() {
+    if (!autoCorrectToggle.checked) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) return;
+    const node = range.startContainer;
+    if (node.nodeType !== 3) return;
+    const text = node.nodeValue;
+    const offset = range.startOffset;
+    // Look backwards for word
+    const m = text.slice(0, offset).match(/(\S+)\s$/);
+    if (!m) return;
+    const word = m[1];
+    if (TYPOS[word]) {
+      const newText = text.slice(0, offset - word.length - 1) + TYPOS[word] + ' ' + text.slice(offset);
+      node.nodeValue = newText;
+      const newOffset = offset - word.length - 1 + TYPOS[word].length + 1;
+      range.setStart(node, newOffset);
+      range.setEnd(node, newOffset);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+
+  editor.addEventListener('input', (e) => {
+    if (e.inputType === 'insertText' && (e.data === ' ' || e.data === '\n')) {
+      autoCorrectOnSpace();
+    } else if (e.inputType === 'insertText') {
+      autoCorrectAtCursor();
+    }
+  });
+
+  // ============================================================
+  // FEATURE: Share link (URL hash with base64-encoded doc)
+  // ============================================================
+  function buildShareLink() {
+    const data = {
+      v: 1, t: docTitle.value,
+      h: editor.innerHTML,
+    };
+    const json = JSON.stringify(data);
+    let b64;
+    try {
+      b64 = btoa(unescape(encodeURIComponent(json)));
+    } catch {
+      b64 = btoa(json);
+    }
+    const url = location.origin + location.pathname + '#d=' + b64;
+    return url;
+  }
+
+  function decodeShareLink() {
+    const m = (location.hash || '').match(/^#d=(.*)$/);
+    if (!m) return null;
+    try {
+      const json = decodeURIComponent(escape(atob(m[1])));
+      return JSON.parse(json);
+    } catch {
+      try { return JSON.parse(atob(m[1])); } catch { return null; }
+    }
+  }
+
+  function renderShareView() {
+    backstageTitle.textContent = 'Share link';
+    const url = buildShareLink();
+    const max = 1900;
+    const tooLong = url.length > max;
+    backstageContent.innerHTML =
+      '<p>Anyone with this link will be able to open a copy of this document in their browser.</p>' +
+      '<label style="display:flex;flex-direction:column;gap:6px"><span style="color:#666;font-size:12px">Share URL</span>' +
+      '<textarea id="shareUrl" rows="4" readonly></textarea></label>' +
+      (tooLong
+        ? '<p style="color:#b71c1c">⚠ This document is large (' +
+          url.length.toLocaleString() + ' characters). The link may not work in all browsers ' +
+          '(URL length limits). Consider using <b>Save (.rwd)</b> instead.</p>'
+        : '<p class="muted">URL length: ' + url.length.toLocaleString() + ' characters.</p>') +
+      '<button class="btn primary" id="copyShareBtn">Copy link</button>';
+    const ta = $('#shareUrl');
+    ta.value = url;
+    $('#copyShareBtn').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        flashStatus('Link copied');
+      } catch {
+        ta.select();
+        document.execCommand('copy');
+      }
+    });
+  }
+
+  // Auto-load shared doc from URL on first load
+  (function loadShared() {
+    const data = decodeShareLink();
+    if (!data) return;
+    setTimeout(() => {
+      if (confirm('A document was shared via this link. Open it? (Your current document will be replaced; a snapshot is taken first.)')) {
+        try { snapshot(); } catch {}
+        editor.innerHTML = sanitizeImported(data.h || '');
+        if (data.t) docTitle.value = data.t;
+        history.replaceState(null, '', location.pathname);
+        queueAutosave();
+        rebuildOutline();
+      }
+    }, 100);
+  })();
+
+  // ============================================================
+  // FEATURE: Lorem ipsum generator
+  // ============================================================
+  const LOREM_LONG = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.';
+  const LOREM_SHORT = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.';
+
+  $('#loremBtn').addEventListener('click', () => {
+    saveSelection();
+    openModal($('#loremModal'));
+  });
+  $('#loremInsertBtn').addEventListener('click', () => {
+    const n = Math.max(1, Math.min(50, parseInt($('#loremCount').value, 10) || 3));
+    const short = $('#loremShort').checked;
+    const para = short ? LOREM_SHORT : LOREM_LONG;
+    const html = Array.from({ length: n }, () => '<p>' + para + '</p>').join('');
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    closeModal($('#loremModal'));
+    queueAutosave();
+  });
+
+  // ============================================================
+  // FEATURE: Reading mode (read-only)
+  // ============================================================
+  const readingExitBtn = $('#readingExitBtn');
+  function enterReadingMode() {
+    document.body.classList.add('reading-mode');
+    editor.contentEditable = 'false';
+    readingExitBtn.hidden = false;
+  }
+  function exitReadingMode() {
+    document.body.classList.remove('reading-mode');
+    editor.contentEditable = 'true';
+    readingExitBtn.hidden = true;
+  }
+  $('#readingModeBtn').addEventListener('click', enterReadingMode);
+  readingExitBtn.addEventListener('click', exitReadingMode);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('reading-mode')) {
+      exitReadingMode();
+    }
+  });
+
+  // ============================================================
+  // FEATURE: Comments / sticky notes
+  // ============================================================
+  const commentModal = $('#commentModal');
+  let pendingCommentRange = null;
+
+  $('#commentBtn').addEventListener('click', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !editor.contains(sel.anchorNode)) {
+      alert('Select some text first to attach a comment.');
+      return;
+    }
+    pendingCommentRange = sel.getRangeAt(0).cloneRange();
+    $('#commentSelectionPreview').textContent =
+      '“' + pendingCommentRange.toString().slice(0, 80) +
+      (pendingCommentRange.toString().length > 80 ? '…' : '') + '”';
+    $('#commentText').value = '';
+    openModal(commentModal);
+    setTimeout(() => $('#commentText').focus(), 50);
+  });
+
+  $('#saveCommentBtn').addEventListener('click', () => {
+    const text = $('#commentText').value.trim();
+    if (!text || !pendingCommentRange) {
+      closeModal(commentModal);
+      return;
+    }
+    const span = document.createElement('span');
+    span.className = 'rwd-comment';
+    span.dataset.comment = text;
+    span.title = text;
+    try {
+      span.appendChild(pendingCommentRange.extractContents());
+      pendingCommentRange.insertNode(span);
+    } catch {}
+    pendingCommentRange = null;
+    closeModal(commentModal);
+    queueAutosave();
+  });
+
+  // Click a comment to view / edit / delete
+  editor.addEventListener('click', (e) => {
+    const span = e.target.closest && e.target.closest('.rwd-comment');
+    if (!span) return;
+    const action = prompt(
+      'Comment: ' + span.dataset.comment +
+      '\n\nType "edit" to edit, "delete" to remove, or leave blank to close.',
+      ''
+    );
+    if (action === null) return;
+    if (action.toLowerCase() === 'delete') {
+      const parent = span.parentNode;
+      while (span.firstChild) parent.insertBefore(span.firstChild, span);
+      parent.removeChild(span);
+      queueAutosave();
+    } else if (action.toLowerCase() === 'edit') {
+      const next = prompt('Edit comment:', span.dataset.comment);
+      if (next !== null && next.trim()) {
+        span.dataset.comment = next.trim();
+        span.title = next.trim();
+        queueAutosave();
+      }
+    }
+  });
+
+  // ============================================================
+  // FEATURE: Quick parts (saved snippets)
+  // ============================================================
+  const STORE_SNIPPETS = 'rodmanword:snippets';
+  const quickPartsModal = $('#quickPartsModal');
+
+  function getSnippets() {
+    try { return JSON.parse(localStorage.getItem(STORE_SNIPPETS) || '[]'); } catch { return []; }
+  }
+  function setSnippets(list) {
+    try { localStorage.setItem(STORE_SNIPPETS, JSON.stringify(list)); } catch {}
+  }
+
+  function renderSnippets() {
+    const list = getSnippets();
+    const ul = $('#snippetList');
+    ul.innerHTML = '';
+    if (!list.length) {
+      ul.innerHTML = '<li class="empty">No snippets yet — select some text and save it.</li>';
+      return;
+    }
+    list.forEach((snip, i) => {
+      const li = document.createElement('li');
+      li.innerHTML =
+        '<span class="name">' + escapeHtml(snip.name) + '</span>' +
+        '<span class="actions">' +
+          '<button data-act="insert">Insert</button>' +
+          '<button data-act="delete">Delete</button>' +
+        '</span>';
+      li.querySelector('[data-act="insert"]').addEventListener('click', () => {
+        restoreSelection();
+        document.execCommand('insertHTML', false, snip.html);
+        closeModal(quickPartsModal);
+        queueAutosave();
+      });
+      li.querySelector('[data-act="delete"]').addEventListener('click', () => {
+        const next = getSnippets();
+        next.splice(i, 1);
+        setSnippets(next);
+        renderSnippets();
+      });
+      ul.appendChild(li);
+    });
+  }
+
+  $('#quickPartsBtn').addEventListener('click', () => {
+    saveSelection();
+    renderSnippets();
+    openModal(quickPartsModal);
+  });
+
+  $('#saveSnippetBtn').addEventListener('click', () => {
+    const name = ($('#snippetName').value || '').trim();
+    if (!name) { alert('Give the snippet a name first.'); return; }
+    const sel = window.getSelection();
+    let html;
+    if (savedRange && !savedRange.collapsed) {
+      const div = document.createElement('div');
+      div.appendChild(savedRange.cloneContents());
+      html = div.innerHTML;
+    } else if (sel && !sel.isCollapsed) {
+      const div = document.createElement('div');
+      div.appendChild(sel.getRangeAt(0).cloneContents());
+      html = div.innerHTML;
+    }
+    if (!html) {
+      alert('Select some text in the document first, then open Quick parts and click Save.');
+      return;
+    }
+    const list = getSnippets();
+    list.push({ name, html, at: new Date().toISOString() });
+    setSnippets(list);
+    $('#snippetName').value = '';
+    renderSnippets();
+    flashStatus('Snippet saved');
+  });
+
+  // ============================================================
+  // FEATURE: Change case
+  // ============================================================
+  const changeCaseSelect = $('#changeCase');
+  changeCaseSelect.addEventListener('change', () => {
+    const mode = changeCaseSelect.value;
+    changeCaseSelect.value = '';
+    if (!mode) return;
+    restoreSelection();
+    const sel = window.getSelection();
+    const text = sel ? sel.toString() : '';
+    if (!text) {
+      alert('Select some text first.');
+      return;
+    }
+    let next;
+    switch (mode) {
+      case 'upper': next = text.toUpperCase(); break;
+      case 'lower': next = text.toLowerCase(); break;
+      case 'title':
+        next = text.toLowerCase().replace(
+          /\b([a-zà-ÿ])/g, (m) => m.toUpperCase()
+        );
+        break;
+      case 'sentence':
+        next = text.toLowerCase().replace(
+          /(^|[.!?]\s+)([a-zà-ÿ])/g,
+          (_, p, c) => p + c.toUpperCase()
+        );
+        break;
+      case 'toggle':
+        next = text.split('').map((c) =>
+          c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase()
+        ).join('');
+        break;
+      default: next = text;
+    }
+    document.execCommand('insertText', false, next);
+    queueAutosave();
   });
 
   function renderTemplates() {
