@@ -813,6 +813,10 @@
         exportHtml();
         closeBackstage();
         break;
+      case 'export-docx':
+        exportDocx();
+        closeBackstage();
+        break;
       case 'export-md':
         exportMarkdown();
         closeBackstage();
@@ -950,6 +954,29 @@ ${editor.innerHTML}
     );
   }
 
+  function exportDocx() {
+    if (!window.RodmanDocx) {
+      toast('docx.js not loaded', 'error');
+      return;
+    }
+    try {
+      const blob = window.RodmanDocx.saveDocx(editor.innerHTML, docTitle.value);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = sanitizeFileName(docTitle.value) + '.docx';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+      toast('Exported .docx', 'success');
+    } catch (err) {
+      toast('Export failed: ' + err.message, 'error');
+    }
+  }
+
   function sanitizeFileName(name) {
     return (name || 'document').replace(/[^\w\-]+/g, '_').slice(0, 64) || 'document';
   }
@@ -1001,6 +1028,25 @@ ${editor.innerHTML}
       addRecent(docTitle.value);
       queueAutosave();
       closeBackstage();
+      return;
+    }
+    if (/\.docx$/i.test(file.name) ||
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      try {
+        const buf = await file.arrayBuffer();
+        if (!window.RodmanDocx) throw new Error('docx.js not loaded');
+        const html = await window.RodmanDocx.loadDocx(buf);
+        editor.innerHTML = sanitizeImported(html);
+        docTitle.value = file.name.replace(/\.docx$/i, '');
+        addRecent(docTitle.value);
+        queueAutosave();
+        rebuildOutline();
+        closeBackstage();
+        toast('Imported .docx', 'success');
+      } catch (err) {
+        toast('Could not read this .docx file: ' + err.message, 'error');
+      }
+      e.target.value = '';
       return;
     }
     const reader = new FileReader();
@@ -1530,6 +1576,10 @@ ${editor.innerHTML}
     { name: 'Insert emoji', run: () => $('#insertEmojiBtn').click() },
     { name: 'Insert date', run: () => $('#insertDateBtn').click() },
     { name: 'Insert lorem ipsum', run: () => $('#loremBtn').click() },
+    { name: 'Export as Word (.docx)', run: () => exportDocx() },
+    { name: 'Export as HTML', run: () => exportHtml() },
+    { name: 'Export as Markdown', run: () => exportMarkdown() },
+    { name: 'Export as Text', run: () => exportTxt() },
     { name: 'Insert table of contents', run: () => $('#insertTocBtn').click() },
     { name: 'Insert footnote', run: () => $('#insertFootnoteBtn').click() },
     { name: 'Insert pull quote', run: () => $('#pullQuoteBtn').click() },
@@ -2585,8 +2635,9 @@ ${editor.innerHTML}
     const f = files[0];
     if (f.type.startsWith('image/')) return; // image-drop handled by editor listener
     if (!editor.contains(e.target) ||
-        /\.(rwd|html?|txt|md)$/i.test(f.name) ||
-        f.type === 'application/json') {
+        /\.(rwd|html?|txt|md|docx)$/i.test(f.name) ||
+        f.type === 'application/json' ||
+        f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       e.preventDefault();
       const dt = new DataTransfer();
       dt.items.add(f);
