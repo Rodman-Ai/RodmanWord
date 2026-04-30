@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#2b579a" />
+  <title>RodmanWord</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="title-bar">
+    <div class="app-brand">
+      <div class="app-logo" aria-hidden="true">W</div>
+      <div class="app-title">
+        <input
+          id="docTitle"
+          class="doc-title"
+          type="text"
+          value="Document1"
+          aria-label="Document title"
+          spellcheck="false"
+        />
+        <span class="app-subtitle">RodmanWord</span>
+      </div>
+    </div>
+    <div class="title-actions">
+      <button class="icon-btn" id="toggleRibbonBtn" title="Show/hide ribbon" aria-label="Toggle ribbon">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path fill="currentColor" d="M7 10l5 5 5-5H7z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Ribbon tabs">
+    <button class="tab" role="tab" data-tab="file">File</button>
+    <button class="tab active" role="tab" aria-selected="true" data-tab="home">Home</button>
+    <button class="tab" role="tab" data-tab="insert">Insert</button>
+    <button class="tab" role="tab" data-tab="layout">Layout</button>
+    <button class="tab" role="tab" data-tab="view">View</button>
+  </nav>
+
+  <section class="ribbon" id="ribbon">
+    <!-- Home tab -->
+    <div class="ribbon-panel active" data-panel="home">
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" data-cmd="undo" title="Undo (Ctrl+Z)">
+            <span class="ico">↺</span>
+          </button>
+          <button class="ribbon-btn" data-cmd="redo" title="Redo (Ctrl+Y)">
+            <span class="ico">↻</span>
+          </button>
+        </div>
+        <div class="group-label">Undo</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <select class="select" id="fontFamily" title="Font" aria-label="Font family">
+            <option value="Calibri, Arial, sans-serif">Calibri</option>
+            <option value="Arial, sans-serif">Arial</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="'Times New Roman', Times, serif">Times New Roman</option>
+            <option value="'Courier New', Courier, monospace">Courier New</option>
+            <option value="Verdana, sans-serif">Verdana</option>
+            <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+            <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+            <option value="Tahoma, sans-serif">Tahoma</option>
+            <option value="'Segoe UI', sans-serif">Segoe UI</option>
+          </select>
+          <select class="select sm" id="fontSize" title="Font size" aria-label="Font size">
+            <option>8</option><option>9</option><option>10</option>
+            <option selected>11</option><option>12</option><option>14</option>
+            <option>16</option><option>18</option><option>20</option>
+            <option>22</option><option>24</option><option>28</option>
+            <option>32</option><option>36</option><option>48</option>
+            <option>72</option>
+          </select>
+        </div>
+        <div class="group-row">
+          <button class="ribbon-btn" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button class="ribbon-btn" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+          <button class="ribbon-btn" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+          <button class="ribbon-btn" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+          <button class="ribbon-btn" data-cmd="subscript" title="Subscript">X<sub>2</sub></button>
+          <button class="ribbon-btn" data-cmd="superscript" title="Superscript">X<sup>2</sup></button>
+          <label class="ribbon-btn color" title="Font color">
+            <span style="color:#d23f31;font-weight:700">A</span>
+            <input type="color" id="foreColor" value="#000000" />
+          </label>
+          <label class="ribbon-btn color" title="Highlight color">
+            <span style="background:#fff59d;padding:0 3px">A</span>
+            <input type="color" id="hiliteColor" value="#ffff00" />
+          </label>
+          <button class="ribbon-btn" data-cmd="removeFormat" title="Clear formatting">⌫</button>
+        </div>
+        <div class="group-label">Font</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" data-cmd="insertUnorderedList" title="Bulleted list">• ≡</button>
+          <button class="ribbon-btn" data-cmd="insertOrderedList" title="Numbered list">1. ≡</button>
+          <button class="ribbon-btn" data-cmd="outdent" title="Decrease indent">⇤</button>
+          <button class="ribbon-btn" data-cmd="indent" title="Increase indent">⇥</button>
+        </div>
+        <div class="group-row">
+          <button class="ribbon-btn" data-cmd="justifyLeft" title="Align left">⯇</button>
+          <button class="ribbon-btn" data-cmd="justifyCenter" title="Center">⯀</button>
+          <button class="ribbon-btn" data-cmd="justifyRight" title="Align right">⯈</button>
+          <button class="ribbon-btn" data-cmd="justifyFull" title="Justify">≡</button>
+        </div>
+        <div class="group-label">Paragraph</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <select class="select" id="blockStyle" title="Style" aria-label="Paragraph style">
+            <option value="P">Normal</option>
+            <option value="H1">Heading 1</option>
+            <option value="H2">Heading 2</option>
+            <option value="H3">Heading 3</option>
+            <option value="H4">Heading 4</option>
+            <option value="BLOCKQUOTE">Quote</option>
+            <option value="PRE">Code</option>
+          </select>
+        </div>
+        <div class="group-label">Styles</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="findBtn" title="Find &amp; Replace (Ctrl+F)">🔍 Find</button>
+        </div>
+        <div class="group-label">Editing</div>
+      </div>
+    </div>
+
+    <!-- Insert tab -->
+    <div class="ribbon-panel" data-panel="insert">
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn wide" id="insertImageBtn">🖼 Picture</button>
+          <button class="ribbon-btn wide" id="insertLinkBtn">🔗 Link</button>
+          <button class="ribbon-btn wide" id="insertTableBtn">▦ Table</button>
+        </div>
+        <div class="group-label">Insert</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn wide" data-cmd="insertHorizontalRule">― Hr. line</button>
+          <button class="ribbon-btn wide" id="insertDateBtn">📅 Date</button>
+          <button class="ribbon-btn wide" id="insertSymbolBtn">Ω Symbol</button>
+        </div>
+        <div class="group-label">Elements</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn wide" id="pageBreakBtn">¶ Page break</button>
+        </div>
+        <div class="group-label">Pages</div>
+      </div>
+    </div>
+
+    <!-- Layout tab -->
+    <div class="ribbon-panel" data-panel="layout">
+      <div class="group">
+        <div class="group-row">
+          <label class="control">
+            Size
+            <select id="pageSize" class="select">
+              <option value="letter">Letter</option>
+              <option value="a4" selected>A4</option>
+              <option value="legal">Legal</option>
+            </select>
+          </label>
+          <label class="control">
+            Orientation
+            <select id="orientation" class="select">
+              <option value="portrait">Portrait</option>
+              <option value="landscape">Landscape</option>
+            </select>
+          </label>
+        </div>
+        <div class="group-label">Page</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <label class="control">
+            Margins
+            <select id="margins" class="select">
+              <option value="normal">Normal</option>
+              <option value="narrow">Narrow</option>
+              <option value="wide">Wide</option>
+            </select>
+          </label>
+        </div>
+        <div class="group-label">Page setup</div>
+      </div>
+    </div>
+
+    <!-- View tab -->
+    <div class="ribbon-panel" data-panel="view">
+      <div class="group">
+        <div class="group-row">
+          <label class="control">
+            Zoom
+            <input type="range" id="zoom" min="50" max="200" value="100" />
+            <span id="zoomLabel">100%</span>
+          </label>
+        </div>
+        <div class="group-label">Zoom</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <label class="control switch">
+            <input type="checkbox" id="darkMode" />
+            <span>Dark mode</span>
+          </label>
+          <label class="control switch">
+            <input type="checkbox" id="rulerToggle" checked />
+            <span>Ruler</span>
+          </label>
+        </div>
+        <div class="group-label">Display</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- File menu (backstage) -->
+  <div class="backstage" id="backstage" hidden>
+    <aside class="backstage-side">
+      <button class="back-btn" id="backCloseBtn" aria-label="Close menu">←</button>
+      <ul>
+        <li><button data-action="new">New</button></li>
+        <li><button data-action="open">Open…</button></li>
+        <li><button data-action="save">Save (.rwd)</button></li>
+        <li><button data-action="export-html">Export HTML</button></li>
+        <li><button data-action="export-txt">Export Text</button></li>
+        <li><button data-action="print">Print / PDF</button></li>
+        <li><button data-action="recent">Recent</button></li>
+        <li><button data-action="about">About</button></li>
+      </ul>
+    </aside>
+    <main class="backstage-main" id="backstageMain">
+      <h1 id="backstageTitle">File</h1>
+      <div id="backstageContent">Choose a command on the left.</div>
+    </main>
+  </div>
+
+  <!-- Document workspace -->
+  <main class="workspace" id="workspace">
+    <div class="ruler" id="ruler" aria-hidden="true"></div>
+    <div class="page-wrap" id="pageWrap">
+      <div
+        class="page a4 portrait margins-normal"
+        id="page"
+      >
+        <article
+          id="editor"
+          class="editor"
+          contenteditable="true"
+          spellcheck="true"
+          aria-label="Document editor"
+        ><h1>Welcome to RodmanWord</h1>
+<p>RodmanWord is a lightweight Microsoft Word–style editor that runs entirely in your browser. Start typing to replace this text, or use the <b>Home</b> tab above to format your content.</p>
+<p>Tips:</p>
+<ul>
+  <li>Press <b>Ctrl+B</b>, <b>Ctrl+I</b>, <b>Ctrl+U</b> to format text.</li>
+  <li>Press <b>Ctrl+S</b> to save your document, or <b>Ctrl+P</b> to print.</li>
+  <li>Use <b>File → Export HTML</b> to share, or <b>Print → Save as PDF</b>.</li>
+</ul>
+<p>Your work is auto-saved to this browser as you type.</p></article>
+      </div>
+    </div>
+  </main>
+
+  <footer class="status-bar">
+    <span id="statusPage">Page 1 of 1</span>
+    <span class="sep">•</span>
+    <span id="statusWords">0 words</span>
+    <span class="sep">•</span>
+    <span id="statusChars">0 characters</span>
+    <span class="spacer"></span>
+    <span id="statusSaved">Saved</span>
+  </footer>
+
+  <!-- Find & Replace dialog -->
+  <div class="modal" id="findModal" hidden>
+    <div class="modal-card">
+      <header><h3>Find &amp; Replace</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <label>Find <input id="findInput" type="text" /></label>
+        <label>Replace <input id="replaceInput" type="text" /></label>
+        <label class="row"><input type="checkbox" id="matchCase" /> Match case</label>
+      </div>
+      <footer>
+        <button class="btn" id="findNextBtn">Find next</button>
+        <button class="btn" id="replaceOneBtn">Replace</button>
+        <button class="btn primary" id="replaceAllBtn">Replace all</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Table dialog -->
+  <div class="modal" id="tableModal" hidden>
+    <div class="modal-card">
+      <header><h3>Insert table</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <label>Rows <input id="tblRows" type="number" min="1" max="50" value="3" /></label>
+        <label>Columns <input id="tblCols" type="number" min="1" max="20" value="3" /></label>
+        <label class="row"><input id="tblBorders" type="checkbox" checked /> Show borders</label>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="insertTableConfirm">Insert</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Symbol dialog -->
+  <div class="modal" id="symbolModal" hidden>
+    <div class="modal-card">
+      <header><h3>Insert symbol</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body symbol-grid" id="symbolGrid"></div>
+    </div>
+  </div>
+
+  <input type="file" id="filePicker" accept=".rwd,.html,.htm,.txt,application/json" hidden />
+  <input type="file" id="imagePicker" accept="image/*" hidden />
+
+  <script src="app.js"></script>
+</body>
+</html>
