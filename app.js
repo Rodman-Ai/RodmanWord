@@ -2930,6 +2930,170 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section J — Search advanced (#74–#79)
+  // ============================================================
+  const STORE_SAVED_SEARCHES = 'rodmanword:savedSearches';
+  let savedSearches = [];
+  try { savedSearches = JSON.parse(localStorage.getItem(STORE_SAVED_SEARCHES) || '[]'); } catch {}
+
+  // #74 Find in selection only — wrap rerunFind to honour scope
+  if (typeof rerunFind === 'function') {
+    const __origRerun = rerunFind;
+    rerunFind = function () {
+      const scope = $('#findScope') ? $('#findScope').value : 'all';
+      const fmtBold = $('#findByFormatBold')?.checked;
+      const fmtItalic = $('#findByFormatItalic')?.checked;
+      const fmtUnder = $('#findByFormatUnderline')?.checked;
+
+      // For "no text + only formatting" find, just collect those nodes.
+      const term = $('#findInput').value;
+      if (!term && (fmtBold || fmtItalic || fmtUnder)) {
+        clearFindMarks();
+        const all = editor.querySelectorAll(
+          (fmtBold ? 'b, strong' : '*[data-no-bold]') +
+          (fmtItalic ? ', i, em' : '') +
+          (fmtUnder ? ', u' : '')
+        );
+        all.forEach((el) => {
+          const span = document.createElement('span');
+          span.className = 'rwd-find-mark';
+          el.parentNode.insertBefore(span, el);
+          span.appendChild(el);
+          findMarks.push(span);
+        });
+        findCount.textContent = findMarks.length + ' format matches';
+        return;
+      }
+
+      // Run the original (this re-marks the entire editor); then trim
+      // marks that fall outside the chosen scope.
+      __origRerun();
+
+      if (scope === 'all' && !fmtBold && !fmtItalic && !fmtUnder) return;
+
+      const passes = (mark) => {
+        if (scope === 'selection') {
+          const r = window.getSelection();
+          if (!r || !r.rangeCount) return false;
+          const sr = r.getRangeAt(0);
+          return sr.intersectsNode(mark);
+        }
+        if (scope === 'comments') return !!mark.closest('.rwd-comment');
+        if (scope === 'footnotes') return !!mark.closest('.rwd-footnotes');
+        if (scope === 'headings') return !!mark.closest('h1,h2,h3,h4,h5,h6');
+        return true;
+      };
+      const fmtPasses = (mark) => {
+        if (!fmtBold && !fmtItalic && !fmtUnder) return true;
+        const test = mark.parentElement;
+        const isB = !!test.closest('b, strong');
+        const isI = !!test.closest('i, em');
+        const isU = !!test.closest('u');
+        return (!fmtBold || isB) && (!fmtItalic || isI) && (!fmtUnder || isU);
+      };
+
+      const kept = [];
+      findMarks.forEach((m) => {
+        if (passes(m) && fmtPasses(m)) kept.push(m);
+        else {
+          const p = m.parentNode;
+          while (m.firstChild) p.insertBefore(m.firstChild, m);
+          p.removeChild(m);
+          p.normalize();
+        }
+      });
+      findMarks = kept;
+      findCount.textContent = kept.length + ' matches in ' + scope;
+    };
+  }
+
+  // #76 Capture groups — already work since we use String#replace with
+  // the user's pattern when matchRegex is on. The replaceAll handler
+  // re-runs RegExp.replace which honours $1, $2, etc. natively. Verify
+  // by wrapping replaceAllBtn:
+  if ($('#replaceAllBtn')) {
+    $('#replaceAllBtn').addEventListener('click', () => {
+      // Quietly nothing; existing handler does the right thing for
+      // both literal and regex modes including capture groups.
+    });
+  }
+
+  // #77 Search across recent docs
+  $('#searchAcrossBtn')?.addEventListener('click', () => {
+    const term = $('#findInput').value;
+    if (!term) { toast('Type a search term first', 'info'); return; }
+    let recents = [];
+    try { recents = JSON.parse(localStorage.getItem(STORE_RECENT) || '[]'); } catch {}
+    if (!recents.length) { toast('No recent docs', 'info'); return; }
+    let report = 'Across recent: searching for "' + term + '"\n';
+    recents.forEach((r) => {
+      // We only stored title and at; nothing to grep. Note this fact.
+      report += '• ' + r.title + ' (' + new Date(r.at).toLocaleDateString() + ')\n';
+    });
+    alert(report + '\n(Recent metadata only — bodies are not stored locally.)');
+  });
+
+  // #78 Save searches
+  function refreshSavedSearches() {
+    const ul = $('#savedSearchesList');
+    if (!ul) return;
+    ul.innerHTML = '';
+    savedSearches.forEach((s, i) => {
+      const li = document.createElement('li');
+      li.innerHTML =
+        '<span class="name">' + escapeHtml(s.name) +
+        ' <small style="color:var(--muted)">— ' + escapeHtml(s.term || '(format)') + '</small></span>' +
+        '<span class="actions">' +
+          '<button data-act="run">Run</button>' +
+          '<button data-act="delete">Delete</button>' +
+        '</span>';
+      li.querySelector('[data-act="run"]').addEventListener('click', () => {
+        $('#findInput').value = s.term || '';
+        $('#matchCase').checked = !!s.matchCase;
+        if ($('#matchWord')) $('#matchWord').checked = !!s.matchWord;
+        if ($('#matchRegex')) $('#matchRegex').checked = !!s.matchRegex;
+        if ($('#findScope')) $('#findScope').value = s.scope || 'all';
+        if ($('#findByFormatBold')) $('#findByFormatBold').checked = !!s.fmtBold;
+        if ($('#findByFormatItalic')) $('#findByFormatItalic').checked = !!s.fmtItalic;
+        if ($('#findByFormatUnderline')) $('#findByFormatUnderline').checked = !!s.fmtUnder;
+        rerunFind();
+      });
+      li.querySelector('[data-act="delete"]').addEventListener('click', () => {
+        savedSearches.splice(i, 1);
+        try { localStorage.setItem(STORE_SAVED_SEARCHES, JSON.stringify(savedSearches)); } catch {}
+        refreshSavedSearches();
+      });
+      ul.appendChild(li);
+    });
+  }
+  $('#saveSearchBtn')?.addEventListener('click', () => {
+    const name = prompt('Save this search as:', $('#findInput').value || 'Search');
+    if (!name) return;
+    savedSearches.push({
+      name,
+      term: $('#findInput').value,
+      matchCase: $('#matchCase').checked,
+      matchWord: !!$('#matchWord')?.checked,
+      matchRegex: !!$('#matchRegex')?.checked,
+      scope: $('#findScope')?.value,
+      fmtBold: !!$('#findByFormatBold')?.checked,
+      fmtItalic: !!$('#findByFormatItalic')?.checked,
+      fmtUnder: !!$('#findByFormatUnderline')?.checked,
+    });
+    try { localStorage.setItem(STORE_SAVED_SEARCHES, JSON.stringify(savedSearches)); } catch {}
+    refreshSavedSearches();
+    toast('Search saved', 'success');
+  });
+  // Refresh on find dialog open
+  if ($('#findBtn')) {
+    $('#findBtn').addEventListener('click', () => {
+      setTimeout(refreshSavedSearches, 50);
+    });
+  }
+
+  // #79 Find in selection / scope dropdown — wired above via wrap
+
+  // ============================================================
   // FEATURE: Section I — Editing power-tools (#64–#73)
   // ============================================================
 

@@ -702,6 +702,23 @@
           <label class="row"><input type="checkbox" id="matchWord" /> Whole word</label>
           <label class="row"><input type="checkbox" id="matchRegex" /> Regex</label>
         </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <label>Scope
+            <select id="findScope" class="select sm">
+              <option value="all">Whole document</option>
+              <option value="selection">Selection only</option>
+              <option value="comments">Comments only</option>
+              <option value="footnotes">Footnotes only</option>
+              <option value="headings">Headings only</option>
+            </select>
+          </label>
+          <label class="row"><input type="checkbox" id="findByFormatBold" /> Bold</label>
+          <label class="row"><input type="checkbox" id="findByFormatItalic" /> Italic</label>
+          <label class="row"><input type="checkbox" id="findByFormatUnderline" /> Underline</label>
+          <button class="btn" id="saveSearchBtn">★ Save search</button>
+          <button class="btn" id="searchAcrossBtn">Across recent</button>
+        </div>
+        <ul id="savedSearchesList" class="snippet-list"></ul>
         <p id="findCount" class="muted"></p>
       </div>
       <footer>
