@@ -4408,7 +4408,140 @@ ${editor.innerHTML}
           hideTableBar();
         }
         break;
+      case 'merge': {
+        // Merge horizontally (current cell + next sibling) or vertically
+        // (with cell directly below) — simple two-way merge.
+        const next = cell.nextElementSibling;
+        const below = row.nextElementSibling &&
+          row.nextElementSibling.children[colIdx];
+        if (next) {
+          const span = parseInt(cell.getAttribute('colspan') || '1', 10);
+          cell.setAttribute('colspan', String(span + 1));
+          cell.innerHTML = (cell.innerHTML.trim() + ' ' +
+            next.innerHTML.trim()).trim() || '&nbsp;';
+          next.remove();
+        } else if (below) {
+          const span = parseInt(cell.getAttribute('rowspan') || '1', 10);
+          cell.setAttribute('rowspan', String(span + 1));
+          cell.innerHTML = (cell.innerHTML.trim() + ' ' +
+            below.innerHTML.trim()).trim() || '&nbsp;';
+          below.remove();
+        }
+        break;
+      }
+      case 'split': {
+        const cs = parseInt(cell.getAttribute('colspan') || '1', 10);
+        const rs = parseInt(cell.getAttribute('rowspan') || '1', 10);
+        if (cs > 1) {
+          cell.setAttribute('colspan', String(cs - 1));
+          const c = document.createElement(cell.tagName);
+          c.innerHTML = '&nbsp;';
+          cell.parentNode.insertBefore(c, cell.nextSibling);
+        } else if (rs > 1) {
+          cell.setAttribute('rowspan', String(rs - 1));
+          const next = row.nextElementSibling;
+          if (next) {
+            const c = document.createElement(cell.tagName);
+            c.innerHTML = '&nbsp;';
+            next.insertBefore(c, next.children[colIdx] || null);
+          }
+        } else {
+          toast('Cell is not merged', 'info');
+        }
+        break;
+      }
+      case 'sort-asc':
+      case 'sort-desc': {
+        const desc = btn.dataset.tact === 'sort-desc';
+        const tbody = table.tBodies[0] || table;
+        const rows = Array.from(tbody.rows);
+        if (rows.length < 2) break;
+        const header = rows[0];
+        const dataRows = rows.slice(1);
+        const sortKey = (r) => {
+          const txt = (r.children[colIdx] && r.children[colIdx].textContent || '').trim();
+          const n = parseFloat(txt);
+          return isNaN(n) ? txt.toLowerCase() : n;
+        };
+        dataRows.sort((a, b) => {
+          const ka = sortKey(a), kb = sortKey(b);
+          if (typeof ka === 'number' && typeof kb === 'number') {
+            return desc ? kb - ka : ka - kb;
+          }
+          return desc ? String(kb).localeCompare(ka) : String(ka).localeCompare(kb);
+        });
+        dataRows.forEach((r) => tbody.appendChild(r));
+        // Re-insert header at top
+        if (header && header.parentNode === tbody) tbody.insertBefore(header, tbody.firstChild);
+        break;
+      }
+      case 'style': {
+        const v = btn.value;
+        ['tbl-bordered','tbl-grid','tbl-banded','tbl-header','tbl-minimal'].forEach((c) =>
+          table.classList.remove(c));
+        // Also strip the legacy "bordered" class so the new style wins
+        table.classList.remove('bordered');
+        if (v) table.classList.add('tbl-' + v);
+        break;
+      }
     }
+    queueAutosave();
+  });
+
+  // The table-style <select> emits `change`, not `click`.
+  tableBar.addEventListener('change', (e) => {
+    const sel = e.target.closest('select');
+    if (!sel || sel.dataset.tact !== 'style') return;
+    const cell = activeCell();
+    if (!cell) return;
+    const table = cell.closest('table');
+    ['tbl-bordered','tbl-grid','tbl-banded','tbl-header','tbl-minimal'].forEach((c) =>
+      table.classList.remove(c));
+    table.classList.remove('bordered');
+    if (sel.value) table.classList.add('tbl-' + sel.value);
+    sel.value = '';
+    queueAutosave();
+  });
+
+  // Convert text → table (commas / tabs / pipes → cells; lines → rows)
+  $('#textToTableBtn')?.addEventListener('click', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) {
+      toast('Select the text to convert first', 'info');
+      return;
+    }
+    const txt = sel.toString();
+    let sep = '\t';
+    if (!txt.includes('\t') && txt.includes(',')) sep = ',';
+    else if (!txt.includes('\t') && !txt.includes(',') && txt.includes('|')) sep = '|';
+    const rows = txt.split(/\r?\n/).filter((l) => l.length).map((l) => l.split(sep));
+    const cols = Math.max(...rows.map((r) => r.length));
+    let html = '<table class="tbl-bordered"><tbody>';
+    rows.forEach((r, i) => {
+      const tag = i === 0 ? 'th' : 'td';
+      html += '<tr>';
+      for (let c = 0; c < cols; c++) {
+        html += '<' + tag + '>' + escapeHtml(r[c] || '&nbsp;') + '</' + tag + '>';
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table><p><br/></p>';
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // Convert table → text (tab-separated, one row per line)
+  $('#tableToTextBtn')?.addEventListener('click', () => {
+    const cell = activeCell();
+    const table = cell ? cell.closest('table') : null;
+    if (!table) { toast('Place the cursor in a table first', 'info'); return; }
+    const lines = [];
+    Array.from(table.rows).forEach((r) => {
+      lines.push(Array.from(r.cells).map((c) =>
+        c.textContent.replace(/\t/g, ' ').trim()).join('\t'));
+    });
+    const html = lines.map((l) => '<p>' + escapeHtml(l) + '</p>').join('');
+    table.outerHTML = html;
     queueAutosave();
   });
 

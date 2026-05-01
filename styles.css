@@ -406,7 +406,19 @@ body {
 }
 .editor table { border-collapse: collapse; margin: 0.4em 0; }
 .editor table.bordered td,
-.editor table.bordered th { border: 1px solid var(--ribbon-border); }
+.editor table.bordered th,
+.editor table.tbl-bordered td,
+.editor table.tbl-bordered th { border: 1px solid var(--ribbon-border); }
+.editor table.tbl-grid td,
+.editor table.tbl-grid th { border: 1px solid var(--text); }
+.editor table.tbl-banded tr:nth-child(odd) td { background: rgba(43, 87, 154, 0.06); }
+.editor table.tbl-banded tr:nth-child(even) td { background: transparent; }
+.editor table.tbl-header tr:first-child td,
+.editor table.tbl-header tr:first-child th {
+  background: var(--primary); color: #fff; font-weight: 600;
+}
+.editor table.tbl-minimal td,
+.editor table.tbl-minimal th { border: none; border-bottom: 1px solid var(--ribbon-border); }
 .editor table td,
 .editor table th { padding: 4px 8px; min-width: 30px; vertical-align: top; }
 .editor img { max-width: 100%; height: auto; }
