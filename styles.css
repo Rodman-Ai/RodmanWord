@@ -473,6 +473,61 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Multi-level numbered lists */
+.editor ol.rwd-multi {
+  counter-reset: rwd-l1;
+  list-style: none;
+  padding-left: 0;
+}
+.editor ol.rwd-multi > li {
+  counter-increment: rwd-l1;
+  position: relative;
+  padding-left: 2.4em;
+}
+.editor ol.rwd-multi > li::before {
+  content: counter(rwd-l1) ".";
+  position: absolute; left: 0;
+  width: 2em; text-align: right; padding-right: 0.4em;
+  font-weight: 600;
+}
+.editor ol.rwd-multi ol {
+  counter-reset: rwd-l2;
+  list-style: none;
+  padding-left: 1.6em;
+}
+.editor ol.rwd-multi ol > li {
+  counter-increment: rwd-l2;
+  position: relative;
+  padding-left: 2.8em;
+}
+.editor ol.rwd-multi ol > li::before {
+  content: counter(rwd-l1) "." counter(rwd-l2);
+  position: absolute; left: 0;
+  width: 2.4em; text-align: right; padding-right: 0.4em;
+}
+.editor ol.rwd-multi ol ol {
+  counter-reset: rwd-l3;
+}
+.editor ol.rwd-multi ol ol > li {
+  counter-increment: rwd-l3;
+  padding-left: 3.4em;
+}
+.editor ol.rwd-multi ol ol > li::before {
+  content: counter(rwd-l1) "." counter(rwd-l2) "." counter(rwd-l3);
+  width: 3em;
+}
+.editor ol.rwd-multi ol ol ol {
+  counter-reset: rwd-l4;
+}
+.editor ol.rwd-multi ol ol ol > li {
+  counter-increment: rwd-l4;
+  padding-left: 4em;
+}
+.editor ol.rwd-multi ol ol ol > li::before {
+  content: counter(rwd-l1) "." counter(rwd-l2) "." counter(rwd-l3) "." counter(rwd-l4);
+  width: 3.6em;
+}
+
 /* Track changes */
 .editor ins.rwd-ins {
   background: rgba(76, 175, 80, 0.15);

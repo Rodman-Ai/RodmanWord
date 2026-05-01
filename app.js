@@ -2690,6 +2690,51 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Multi-level numbered lists (Tier 2, gap #13)
+  // ============================================================
+  // Inserts <ol class="rwd-multi"> which uses CSS counters to number
+  // each nested ol as 1, 1.1, 1.1.1 etc. Tab / Shift+Tab inside a
+  // multi-list demote / promote the current item.
+  $('#multiLevelListBtn')?.addEventListener('click', () => {
+    document.execCommand('insertOrderedList');
+    // Mark the nearest ol as multi-level
+    const sel = window.getSelection();
+    let n = sel && sel.anchorNode;
+    if (n && n.nodeType !== 1) n = n.parentElement;
+    const ol = n && n.closest && n.closest('ol');
+    if (ol) {
+      // Walk up to the root ol so nested ols inherit
+      let root = ol;
+      while (root.parentElement && root.parentElement.closest('ol')) {
+        root = root.parentElement.closest('ol');
+      }
+      root.classList.add('rwd-multi');
+    }
+    queueAutosave();
+  });
+
+  // Tab / Shift+Tab inside a multi-level list to indent / outdent
+  editor.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const sel = window.getSelection();
+    let n = sel && sel.anchorNode;
+    if (n && n.nodeType !== 1) n = n.parentElement;
+    const li = n && n.closest && n.closest('li');
+    const root = li && li.closest && li.closest('ol.rwd-multi, ol.rwd-multi ol, ol.rwd-multi ul');
+    if (!li || !root) return;
+    e.preventDefault();
+    if (e.shiftKey) {
+      document.execCommand('outdent');
+    } else {
+      document.execCommand('indent');
+      // After indent, any newly-created ol/ul should be plain — that's
+      // fine because the rwd-multi class is on the outermost ol and
+      // CSS rules cascade to children.
+    }
+    queueAutosave();
+  });
+
+  // ============================================================
   // FEATURE: Track changes (Tier 1, gap #2)
   // ============================================================
   const trackChangesToggle = $('#trackChangesToggle');
