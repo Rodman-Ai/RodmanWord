@@ -2690,6 +2690,61 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Line / paragraph spacing controls (Tier 2, gap #14)
+  // ============================================================
+  function affectedBlocks() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return [];
+    const range = sel.getRangeAt(0);
+    const blocks = new Set();
+    function add(el) {
+      const b = el && el.closest && el.closest('p, h1, h2, h3, h4, h5, h6, blockquote, pre, li');
+      if (b && editor.contains(b)) blocks.add(b);
+    }
+    if (range.collapsed) {
+      add(range.startContainer.nodeType === 1 ?
+        range.startContainer : range.startContainer.parentElement);
+    } else {
+      const walker = document.createTreeWalker(
+        range.commonAncestorContainer, NodeFilter.SHOW_ELEMENT, {
+        acceptNode: (n) => range.intersectsNode(n)
+          ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+      });
+      let n;
+      while ((n = walker.nextNode())) add(n);
+      // Also capture endpoints
+      add(range.startContainer.nodeType === 1 ?
+        range.startContainer : range.startContainer.parentElement);
+      add(range.endContainer.nodeType === 1 ?
+        range.endContainer : range.endContainer.parentElement);
+    }
+    return Array.from(blocks);
+  }
+
+  $('#lineSpacing')?.addEventListener('change', (e) => {
+    const v = e.target.value;
+    e.target.value = '';
+    if (!v) return;
+    const blocks = affectedBlocks();
+    if (!blocks.length) { toast('Place the cursor in a paragraph first', 'info'); return; }
+    blocks.forEach((b) => { b.style.lineHeight = v; });
+    queueAutosave();
+  });
+
+  $('#paraSpacing')?.addEventListener('change', (e) => {
+    const v = e.target.value;
+    e.target.value = '';
+    if (v === '') return;
+    const blocks = affectedBlocks();
+    if (!blocks.length) { toast('Place the cursor in a paragraph first', 'info'); return; }
+    blocks.forEach((b) => {
+      b.style.marginTop = v + 'em';
+      b.style.marginBottom = v + 'em';
+    });
+    queueAutosave();
+  });
+
+  // ============================================================
   // FEATURE: Multi-level numbered lists (Tier 2, gap #13)
   // ============================================================
   // Inserts <ol class="rwd-multi"> which uses CSS counters to number
