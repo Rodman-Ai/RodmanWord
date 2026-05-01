@@ -180,6 +180,7 @@
           <button class="ribbon-btn wide" id="dropCapBtn" title="Toggle drop cap on paragraph">A Drop cap</button>
           <button class="ribbon-btn wide" id="bookmarkBtn" title="Add bookmark at cursor">🔖 Bookmark</button>
           <button class="ribbon-btn wide" id="bookmarksMenuBtn" title="Jump to bookmark">📚 Bookmarks ▾</button>
+          <button class="ribbon-btn wide" id="equationBtn" title="Insert equation">∑ Equation</button>
         </div>
         <div class="group-label">Layout</div>
       </div>
@@ -548,6 +549,31 @@
         </table>
       </div>
       <footer><button class="btn primary" data-close-modal>Got it</button></footer>
+    </div>
+  </div>
+
+  <!-- Equation editor -->
+  <div class="modal" id="equationModal" hidden>
+    <div class="modal-card lg">
+      <header>
+        <h3 id="equationModalTitle">Insert equation</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Type LaTeX-style math and see the rendered preview update live.</p>
+        <textarea id="equationInput" rows="3" spellcheck="false"
+          placeholder="x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}"></textarea>
+        <div class="equation-palette" id="equationPalette" aria-label="Quick insert"></div>
+        <label class="row">
+          <input type="checkbox" id="equationDisplay" /> Display mode (block, larger)
+        </label>
+        <div class="equation-preview" id="equationPreview" aria-live="polite"></div>
+      </div>
+      <footer>
+        <button class="btn" id="equationDeleteBtn" hidden>Delete</button>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="equationInsertBtn">Insert</button>
+      </footer>
     </div>
   </div>
 

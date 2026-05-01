@@ -484,6 +484,70 @@ body {
 }
 [data-theme='dark'] .editor .rwd-math { background: rgba(255,255,255,0.08); }
 
+/* Equation editor (block/inline MathML) */
+.editor .rwd-equation {
+  display: inline-block;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.editor .rwd-equation:hover {
+  background: rgba(43, 87, 154, 0.1);
+  outline: 1px dashed var(--primary);
+}
+.editor .rwd-equation.display {
+  display: block;
+  text-align: center;
+  margin: 0.6em auto;
+  padding: 0.2em 0.4em;
+}
+.editor .rwd-equation math {
+  font-size: 110%;
+}
+.editor .rwd-equation.display math {
+  font-size: 130%;
+}
+[data-theme='dark'] .editor .rwd-equation:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.equation-preview {
+  border: 1px solid var(--ribbon-border);
+  border-radius: 4px;
+  padding: 14px;
+  background: var(--page-bg);
+  text-align: center;
+  font-size: 18px;
+  min-height: 60px;
+  color: var(--text);
+}
+.equation-preview .err {
+  color: #c62828;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+.equation-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.equation-palette button {
+  background: var(--ribbon-bg);
+  border: 1px solid var(--ribbon-border);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-family: 'Cambria Math', 'STIX Two Math', 'Times New Roman', serif;
+  cursor: pointer;
+  color: var(--text);
+}
+.equation-palette button:hover { background: var(--hover); }
+#equationInput {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
 /* Bookmarks */
 .editor .rwd-bookmark {
   background: rgba(255, 213, 79, 0.4);

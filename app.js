@@ -1687,6 +1687,7 @@ ${editor.innerHTML}
     { name: 'Insert table of contents', run: () => $('#insertTocBtn').click() },
     { name: 'Insert footnote', run: () => $('#insertFootnoteBtn').click() },
     { name: 'Insert pull quote', run: () => $('#pullQuoteBtn').click() },
+    { name: 'Insert equation', run: () => openEquationModalForNew() },
     { name: 'Insert code block', run: () => $('#codeBlockBtn').click() },
     { name: 'Insert word art', run: () => $('#wordArtBtn').click() },
     { name: 'Add bookmark', run: () => $('#bookmarkBtn').click() },
@@ -2490,6 +2491,414 @@ ${editor.innerHTML}
     if (!id) return;
     const li = document.getElementById(id);
     if (li) li.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  // ============================================================
+  // FEATURE: Equation editor (LaTeX-style → MathML)
+  // ============================================================
+  const GREEK_LETTERS = {
+    alpha:'α', beta:'β', gamma:'γ', delta:'δ', epsilon:'ε', varepsilon:'ε',
+    zeta:'ζ', eta:'η', theta:'θ', vartheta:'ϑ', iota:'ι', kappa:'κ',
+    lambda:'λ', mu:'μ', nu:'ν', xi:'ξ', pi:'π', varpi:'ϖ',
+    rho:'ρ', varrho:'ϱ', sigma:'σ', varsigma:'ς', tau:'τ', upsilon:'υ',
+    phi:'φ', varphi:'ϕ', chi:'χ', psi:'ψ', omega:'ω',
+    Gamma:'Γ', Delta:'Δ', Theta:'Θ', Lambda:'Λ', Xi:'Ξ', Pi:'Π',
+    Sigma:'Σ', Upsilon:'Υ', Phi:'Φ', Psi:'Ψ', Omega:'Ω',
+  };
+  const MATH_OPS = {
+    pm:'±', mp:'∓', times:'×', div:'÷', cdot:'⋅', ast:'∗', star:'⋆',
+    le:'≤', leq:'≤', ge:'≥', geq:'≥', ne:'≠', neq:'≠',
+    approx:'≈', equiv:'≡', sim:'∼', simeq:'≃', cong:'≅',
+    propto:'∝', perp:'⊥', parallel:'∥',
+    to:'→', rightarrow:'→', leftarrow:'←', leftrightarrow:'↔',
+    Rightarrow:'⇒', Leftarrow:'⇐', Leftrightarrow:'⇔',
+    infty:'∞', emptyset:'∅', forall:'∀', exists:'∃', neg:'¬',
+    in:'∈', notin:'∉', subset:'⊂', supset:'⊃', subseteq:'⊆', supseteq:'⊇',
+    cup:'∪', cap:'∩', setminus:'∖',
+    sum:'∑', prod:'∏', coprod:'∐', int:'∫', oint:'∮', iint:'∬', iiint:'∭',
+    partial:'∂', nabla:'∇', surd:'√',
+    angle:'∠', triangle:'△', square:'□', diamond:'⋄',
+    aleph:'ℵ', hbar:'ℏ', ell:'ℓ', Re:'ℜ', Im:'ℑ', wp:'℘',
+    ldots:'…', cdots:'⋯', vdots:'⋮', ddots:'⋱',
+    lfloor:'⌊', rfloor:'⌋', lceil:'⌈', rceil:'⌉',
+    langle:'⟨', rangle:'⟩',
+    cdot:'⋅', circ:'∘', bullet:'∙',
+  };
+  const MATH_FUNCTIONS = new Set([
+    'sin','cos','tan','sec','csc','cot',
+    'sinh','cosh','tanh',
+    'arcsin','arccos','arctan',
+    'log','ln','lg','exp',
+    'min','max','sup','inf','lim','liminf','limsup',
+    'det','dim','gcd','arg','deg','ker','hom',
+  ]);
+
+  function escMath(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function latexToMathML(input, displayMode) {
+    if (!input || !input.trim()) return '';
+    const src = String(input);
+    let pos = 0;
+
+    const peek = () => src[pos];
+    const advance = () => src[pos++];
+    const eatSpace = () => { while (pos < src.length && /\s/.test(src[pos])) pos++; };
+
+    function parseExpr(stopAt) {
+      eatSpace();
+      const parts = [];
+      while (pos < src.length) {
+        const c = peek();
+        if (stopAt && c === stopAt) break;
+        if (c === '}') break;
+        const atom = parseAtom();
+        if (atom != null) parts.push(atom);
+        eatSpace();
+      }
+      if (parts.length === 0) return '';
+      if (parts.length === 1) return parts[0];
+      return '<mrow>' + parts.join('') + '</mrow>';
+    }
+
+    function parseGroupArg() {
+      eatSpace();
+      if (peek() === '{') {
+        advance();
+        const inner = parseExpr();
+        if (peek() === '}') advance();
+        return inner || '<mrow></mrow>';
+      }
+      const a = parseAtom();
+      return a || '<mrow></mrow>';
+    }
+
+    function attachScripts(base) {
+      eatSpace();
+      let sub = null, sup = null;
+      while (peek() === '^' || peek() === '_') {
+        const c = advance();
+        const arg = parseGroupArg();
+        if (c === '^') sup = arg;
+        else sub = arg;
+        eatSpace();
+      }
+      if (sub != null && sup != null) return '<msubsup>' + base + sub + sup + '</msubsup>';
+      if (sub != null) return '<msub>' + base + sub + '</msub>';
+      if (sup != null) return '<msup>' + base + sup + '</msup>';
+      return base;
+    }
+
+    function parseNumber() {
+      let s = '';
+      while (pos < src.length && /[0-9.]/.test(src[pos])) s += src[pos++];
+      return attachScripts('<mn>' + s + '</mn>');
+    }
+
+    function parseCommand() {
+      advance(); // consume backslash
+      let name = '';
+      while (pos < src.length && /[a-zA-Z]/.test(src[pos])) name += src[pos++];
+      if (!name) {
+        // Escaped char (e.g. \{ \} \% \$ )
+        if (pos < src.length) {
+          const c = advance();
+          return '<mo>' + escMath(c) + '</mo>';
+        }
+        return '';
+      }
+      if (name === 'frac' || name === 'tfrac' || name === 'dfrac') {
+        const num = parseGroupArg();
+        const den = parseGroupArg();
+        return attachScripts('<mfrac>' + num + den + '</mfrac>');
+      }
+      if (name === 'binom' || name === 'choose') {
+        const top = parseGroupArg();
+        const bot = parseGroupArg();
+        return attachScripts(
+          '<mfenced open="(" close=")"><mfrac linethickness="0">' +
+          top + bot + '</mfrac></mfenced>'
+        );
+      }
+      if (name === 'sqrt') {
+        eatSpace();
+        let degree = null;
+        if (peek() === '[') {
+          advance();
+          let body = '';
+          while (pos < src.length && peek() !== ']') body += advance();
+          if (peek() === ']') advance();
+          degree = '<mn>' + escMath(body) + '</mn>';
+        }
+        const arg = parseGroupArg();
+        if (degree) return attachScripts('<mroot>' + arg + degree + '</mroot>');
+        return attachScripts('<msqrt>' + arg + '</msqrt>');
+      }
+      if (name === 'overline' || name === 'bar') {
+        const arg = parseGroupArg();
+        return attachScripts('<mover>' + arg + '<mo>‾</mo></mover>');
+      }
+      if (name === 'hat' || name === 'widehat') {
+        const arg = parseGroupArg();
+        return attachScripts('<mover>' + arg + '<mo>^</mo></mover>');
+      }
+      if (name === 'vec') {
+        const arg = parseGroupArg();
+        return attachScripts('<mover>' + arg + '<mo>→</mo></mover>');
+      }
+      if (name === 'underline') {
+        const arg = parseGroupArg();
+        return attachScripts('<munder>' + arg + '<mo>_</mo></munder>');
+      }
+      if (name === 'left') {
+        eatSpace();
+        const open = advance() || '';
+        const inner = parseExpr();
+        // expect \right<close>
+        if (src.slice(pos, pos + 6) === '\\right') pos += 6;
+        eatSpace();
+        const close = peek() === '.' ? '' : (advance() || '');
+        return attachScripts(
+          '<mfenced open="' + escMath(open) + '" close="' + escMath(close) + '">' +
+          inner + '</mfenced>'
+        );
+      }
+      if (name === 'mathbb' || name === 'mathbf' || name === 'mathit' ||
+          name === 'mathrm' || name === 'mathcal' || name === 'mathsf' ||
+          name === 'mathtt' || name === 'boldsymbol' || name === 'text') {
+        const arg = parseGroupArg();
+        const styleMap = {
+          mathbb: 'double-struck', mathbf: 'bold', mathit: 'italic',
+          mathrm: 'normal', mathcal: 'script', mathsf: 'sans-serif',
+          mathtt: 'monospace', boldsymbol: 'bold-italic', text: 'normal',
+        };
+        return '<mstyle mathvariant="' + styleMap[name] + '">' + arg + '</mstyle>';
+      }
+      if (GREEK_LETTERS[name]) {
+        return attachScripts('<mi>' + GREEK_LETTERS[name] + '</mi>');
+      }
+      if (MATH_OPS[name]) {
+        const op = '<mo>' + MATH_OPS[name] + '</mo>';
+        // sum/int/prod with limits attach scripts as mover/munder if found
+        if (['sum', 'prod', 'coprod', 'int', 'oint', 'lim', 'liminf', 'limsup'].includes(name)) {
+          return parseLimits(op, /^(sum|prod|coprod|lim)/.test(name));
+        }
+        return op;
+      }
+      if (MATH_FUNCTIONS.has(name)) {
+        return attachScripts('<mi mathvariant="normal">' + name + '</mi>');
+      }
+      // Unknown command: render as text
+      return '<mi>' + escMath(name) + '</mi>';
+    }
+
+    function parseLimits(opHtml, useUnderOver) {
+      eatSpace();
+      let sub = null, sup = null;
+      while (peek() === '^' || peek() === '_') {
+        const c = advance();
+        const arg = parseGroupArg();
+        if (c === '^') sup = arg;
+        else sub = arg;
+        eatSpace();
+      }
+      if (sub != null && sup != null) {
+        const tag = useUnderOver ? 'munderover' : 'msubsup';
+        return '<' + tag + '>' + opHtml + sub + sup + '</' + tag + '>';
+      }
+      if (sub != null) {
+        const tag = useUnderOver ? 'munder' : 'msub';
+        return '<' + tag + '>' + opHtml + sub + '</' + tag + '>';
+      }
+      if (sup != null) {
+        const tag = useUnderOver ? 'mover' : 'msup';
+        return '<' + tag + '>' + opHtml + sup + '</' + tag + '>';
+      }
+      return opHtml;
+    }
+
+    function parseAtom() {
+      eatSpace();
+      if (pos >= src.length) return null;
+      const c = peek();
+      if (c === '{') {
+        advance();
+        const inner = parseExpr();
+        if (peek() === '}') advance();
+        return attachScripts(inner || '<mrow></mrow>');
+      }
+      if (c === '\\') return parseCommand();
+      if (/[0-9]/.test(c)) return parseNumber();
+      if (/[a-zA-Z]/.test(c)) {
+        advance();
+        return attachScripts('<mi>' + escMath(c) + '</mi>');
+      }
+      if (c === '(' || c === ')' || c === '[' || c === ']' || c === '|') {
+        advance();
+        return '<mo>' + escMath(c) + '</mo>';
+      }
+      if ('+-=*/<>,;:.!?'.includes(c)) {
+        advance();
+        return '<mo>' + escMath(c) + '</mo>';
+      }
+      // Unknown char; emit as text
+      advance();
+      return c.trim() ? '<mtext>' + escMath(c) + '</mtext>' : null;
+    }
+
+    let body;
+    try { body = parseExpr(); } catch { body = ''; }
+    if (!body) return '';
+    return '<math xmlns="http://www.w3.org/1998/Math/MathML" display="' +
+      (displayMode ? 'block' : 'inline') + '">' + body + '</math>';
+  }
+
+  // -------- Equation modal wiring --------
+  const equationModal = $('#equationModal');
+  const equationInput = $('#equationInput');
+  const equationPreview = $('#equationPreview');
+  const equationDisplay = $('#equationDisplay');
+  const equationModalTitle = $('#equationModalTitle');
+  const equationDeleteBtn = $('#equationDeleteBtn');
+  const equationPalette = $('#equationPalette');
+  let editingEquationSpan = null;
+
+  const PALETTE_ITEMS = [
+    { label: '𝛼', insert: '\\alpha ' },
+    { label: '𝛽', insert: '\\beta ' },
+    { label: '𝜋', insert: '\\pi ' },
+    { label: '∞', insert: '\\infty ' },
+    { label: '±', insert: '\\pm ' },
+    { label: '≤', insert: '\\le ' },
+    { label: '≥', insert: '\\ge ' },
+    { label: '≠', insert: '\\ne ' },
+    { label: '→', insert: '\\to ' },
+    { label: 'ⁿ', insert: '^{}' , caretBack: 1 },
+    { label: 'ₙ', insert: '_{}' , caretBack: 1 },
+    { label: 'a/b', insert: '\\frac{}{}', caretBack: 3 },
+    { label: '√', insert: '\\sqrt{}', caretBack: 1 },
+    { label: 'ⁿ√', insert: '\\sqrt[]{}', caretBack: 3 },
+    { label: '∑', insert: '\\sum_{i=1}^{n} ' },
+    { label: '∫', insert: '\\int_{a}^{b} ' },
+    { label: '∏', insert: '\\prod_{}^{} ', caretBack: 5 },
+    { label: '𝑥̂', insert: '\\hat{x}', caretBack: 2 },
+    { label: '𝑥̄', insert: '\\bar{x}', caretBack: 2 },
+    { label: '⃗', insert: '\\vec{}', caretBack: 1 },
+    { label: '(…)', insert: '\\left( \\right) ', caretBack: 9 },
+  ];
+
+  function buildPalette() {
+    if (!equationPalette) return;
+    equationPalette.innerHTML = '';
+    PALETTE_ITEMS.forEach((p) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = p.label;
+      b.title = p.insert.trim();
+      b.addEventListener('click', () => insertAtCursor(p.insert, p.caretBack || 0));
+      equationPalette.appendChild(b);
+    });
+  }
+  buildPalette();
+
+  function insertAtCursor(text, caretBack) {
+    const ta = equationInput;
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    const before = ta.value.slice(0, start);
+    const after = ta.value.slice(end);
+    ta.value = before + text + after;
+    const newPos = start + text.length - (caretBack || 0);
+    ta.selectionStart = ta.selectionEnd = newPos;
+    ta.focus();
+    refreshPreview();
+  }
+
+  function refreshPreview() {
+    const tex = equationInput.value;
+    const display = equationDisplay.checked;
+    if (!tex.trim()) {
+      equationPreview.innerHTML =
+        '<span class="muted">Preview will appear here</span>';
+      return;
+    }
+    try {
+      const mml = latexToMathML(tex, display);
+      equationPreview.innerHTML = mml || '<span class="err">Empty</span>';
+    } catch (err) {
+      equationPreview.innerHTML = '<span class="err">' + escMath(err.message) + '</span>';
+    }
+  }
+
+  equationInput?.addEventListener('input', refreshPreview);
+  equationDisplay?.addEventListener('change', refreshPreview);
+
+  function openEquationModalForNew() {
+    editingEquationSpan = null;
+    equationModalTitle.textContent = 'Insert equation';
+    equationDeleteBtn.hidden = true;
+    equationInput.value = '';
+    equationDisplay.checked = false;
+    refreshPreview();
+    saveSelection();
+    openModal(equationModal);
+    setTimeout(() => equationInput.focus(), 50);
+  }
+
+  function openEquationModalForEdit(span) {
+    editingEquationSpan = span;
+    equationModalTitle.textContent = 'Edit equation';
+    equationDeleteBtn.hidden = false;
+    equationInput.value = span.dataset.tex || '';
+    equationDisplay.checked = span.classList.contains('display');
+    refreshPreview();
+    openModal(equationModal);
+    setTimeout(() => equationInput.focus(), 50);
+  }
+
+  $('#equationBtn')?.addEventListener('click', openEquationModalForNew);
+
+  $('#equationInsertBtn')?.addEventListener('click', () => {
+    const tex = equationInput.value.trim();
+    if (!tex) { closeModal(equationModal); return; }
+    const display = equationDisplay.checked;
+    const mml = latexToMathML(tex, display);
+    if (!mml) {
+      toast('Could not render equation', 'error');
+      return;
+    }
+    if (editingEquationSpan) {
+      editingEquationSpan.dataset.tex = tex;
+      editingEquationSpan.innerHTML = mml;
+      editingEquationSpan.classList.toggle('display', display);
+      editingEquationSpan = null;
+      closeModal(equationModal);
+      queueAutosave();
+      return;
+    }
+    const cls = 'rwd-equation' + (display ? ' display' : '');
+    const html = '<span class="' + cls + '" contenteditable="false" data-tex="' +
+      escapeHtml(tex) + '">' + mml + '</span>' + (display ? '<p><br/></p>' : '');
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    closeModal(equationModal);
+    queueAutosave();
+  });
+
+  equationDeleteBtn?.addEventListener('click', () => {
+    if (!editingEquationSpan) return;
+    editingEquationSpan.remove();
+    editingEquationSpan = null;
+    closeModal(equationModal);
+    queueAutosave();
+  });
+
+  // Click an inserted equation to re-edit it
+  editor.addEventListener('click', (e) => {
+    const span = e.target.closest && e.target.closest('.rwd-equation');
+    if (!span) return;
+    e.preventDefault();
+    openEquationModalForEdit(span);
   });
 
   // ============================================================
