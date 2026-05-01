@@ -1663,9 +1663,16 @@
       </header>
       <div class="modal-body about-body">
         <div class="about-logo">W</div>
-        <h2 style="margin:8px 0">RodmanWord</h2>
+        <h2 id="aboutLabel" style="margin:8px 0">RodmanWord</h2>
         <p class="muted">Browser-based Microsoft Word clone</p>
-        <p>Version <b id="aboutVersion">2026.04.30</b></p>
+        <p>
+          Version <b id="aboutVersion">…</b>
+          &nbsp;·&nbsp;
+          Build <span id="aboutBuild" style="color:var(--muted)">…</span>
+        </p>
+        <p style="font-size:11px;color:var(--muted)">
+          Service worker cache: <code id="aboutCache">…</code>
+        </p>
         <p>Open source, MIT licensed. Runs entirely in your browser.</p>
         <p><a href="https://github.com/Rodman-Ai/RodmanWord" target="_blank" rel="noopener">View source on GitHub →</a></p>
       </div>

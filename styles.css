@@ -216,7 +216,14 @@ body {
   overflow-y: auto;
 }
 .ribbon-panel.active { display: flex; }
-.group { min-height: 84px; }
+.group { min-height: 0; }
+/* Tighter group padding so more groups fit per row on narrower
+   desktop windows. Previously each group was ~150–200 px wide;
+   trimming padding pulls that down to ~120–150 px so an extra
+   group fits per row. */
+@media (min-width: 721px) {
+  .group { padding: 4px 8px; }
+}
 
 .group {
   display: flex;
@@ -2514,21 +2521,44 @@ textarea {
   .app-subtitle { display: none; }
   .doc-title { max-width: 50vw; font-size: 13px; }
   .tab { padding: 8px 14px; font-size: 12px; }
+  /* On mobile we flatten the group / group-row hierarchy so every
+     control in the panel sits in the same wrapping flex row. That
+     packs the ribbon into ~3 rows of buttons instead of 6 — one
+     per logical group — at the cost of dropping group dividers
+     (which were already invisible because group-label is hidden).
+     If a panel really has more than three rows of controls, the
+     panel scrolls vertically. */
   .ribbon-panel {
-    min-height: auto; padding: 6px 4px;
-    /* Be explicit on phones: no horizontal scroll, allow wrap, give
-       more vertical space so all groups stay reachable. */
+    min-height: 0;
+    padding: 4px;
     flex-wrap: wrap;
+    align-content: flex-start;
     width: 100%;
     box-sizing: border-box;
     overflow-x: hidden;
-    max-height: 50vh;
+    overflow-y: auto;
+    max-height: 168px;            /* ≈ 3 rows of ~56 px */
+    gap: 2px 4px;
   }
-  .group { padding: 4px 6px; border-right: 1px solid var(--ribbon-border); min-height: 0; }
+  .group {
+    /* Treat the .group as if its children were panel children. */
+    display: contents;
+  }
+  .group-row {
+    /* Same flattening for the inner row wrapper. */
+    display: contents;
+  }
   .group-label { display: none; }
-  .ribbon-btn { height: 36px; min-width: 36px; padding: 4px 6px; }
-  .select { height: 32px; min-width: 80px; font-size: 12px; }
+  .ribbon-btn {
+    height: 32px; min-width: 32px;
+    padding: 2px 6px;
+    font-size: 12px;
+  }
+  .ribbon-btn.wide { min-width: 60px; padding: 2px 8px; }
+  .select { height: 28px; font-size: 12px; min-width: 64px; padding: 1px 6px; }
   .select.sm { min-width: 50px; }
+  .control { font-size: 11px; gap: 2px; }
+  .control.switch { font-size: 12px; }
   .ruler { display: none; }
   .page-wrap { padding: 0 8px; }
   .workspace-main { padding: 8px 0 24px; }

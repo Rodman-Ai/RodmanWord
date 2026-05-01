@@ -1,6 +1,18 @@
 (function () {
   'use strict';
 
+  // Single source of truth for the displayed version. Bump these
+  // whenever you ship something users would call out as 'new'. The
+  // service-worker cache version in sw.js should be kept in lock-step.
+  // Date is the build date (the day the file was last edited).
+  const RW_BUILD = {
+    version: '2.0.0',
+    date: '2026-05-01',
+    cache: 'rwd-v8',
+    label: 'RodmanWord 2.0',
+  };
+  window.RW_BUILD = RW_BUILD;
+
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
@@ -1896,6 +1908,24 @@ ${editor.innerHTML}
   setInterval(updateCounts, 1500);
   // Outline rebuild after init (function defined later in feature block)
   setTimeout(() => { try { rebuildOutline(); } catch {} }, 0);
+
+  // Populate the About dialog from RW_BUILD so it can never show a
+  // stale hard-coded date again.
+  (function fillAbout() {
+    const v = $('#aboutVersion');
+    const b = $('#aboutBuild');
+    const c = $('#aboutCache');
+    const l = $('#aboutLabel');
+    if (v) v.textContent = RW_BUILD.version;
+    if (l) l.textContent = RW_BUILD.label;
+    if (c) c.textContent = RW_BUILD.cache;
+    if (b) {
+      const d = new Date(RW_BUILD.date + 'T00:00:00');
+      b.textContent = d.toLocaleDateString(undefined, {
+        year: 'numeric', month: 'long', day: 'numeric',
+      });
+    }
+  })();
 
   // ============================================================
   // IMPROVEMENT: Undo/redo button state

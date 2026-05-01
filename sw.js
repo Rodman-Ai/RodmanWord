@@ -1,5 +1,7 @@
 // RodmanWord service worker — offline app shell cache
-const VERSION = 'rwd-v7';
+// Keep this in sync with RW_BUILD.cache in app.js so the About
+// dialog displays the same version users actually have cached.
+const VERSION = 'rwd-v8';
 const APP_SHELL = [
   './',
   './index.html',
