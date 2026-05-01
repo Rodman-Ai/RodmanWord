@@ -878,6 +878,10 @@
         $('#customCss').value = localStorage.getItem('rodmanword:customCss') || '';
         openModal($('#cssModal'));
         break;
+      case 'translate':
+        closeBackstage();
+        openModal($('#translateModal'));
+        break;
       case 'print':
         closeBackstage();
         setTimeout(() => { preparePrint(); window.print(); }, 100);
@@ -2895,6 +2899,42 @@ ${editor.innerHTML}
     if (!$('#grammarPane') || $('#grammarPane').hidden) return;
     clearTimeout(window.__rwdGrT);
     window.__rwdGrT = setTimeout(runGrammar, 800);
+  });
+
+  // ============================================================
+  // FEATURE: Translate (Tier 3, gap #28)
+  // ============================================================
+  $('#trOpenBtn')?.addEventListener('click', () => {
+    const sel = window.getSelection();
+    let text;
+    if ($('#trSelectionOnly').checked && sel && !sel.isCollapsed) {
+      text = sel.toString();
+    } else {
+      text = editor.innerText;
+    }
+    text = (text || '').trim();
+    if (!text) { toast('Nothing to translate', 'info'); return; }
+    if (text.length > 4500) {
+      toast('Text is large; opening only first 4500 characters', 'info');
+      text = text.slice(0, 4500);
+    }
+    const src = $('#trSource').value;
+    const tgt = $('#trTarget').value;
+    const svc = $('#trService').value;
+    let url;
+    const t = encodeURIComponent(text);
+    if (svc === 'google') {
+      url = 'https://translate.google.com/?sl=' + src + '&tl=' + tgt +
+        '&op=translate&text=' + t;
+    } else if (svc === 'deepl') {
+      // DeepL doesn't accept the source via a single param; auto-detect works.
+      url = 'https://www.deepl.com/translator#auto/' + tgt + '/' + t;
+    } else if (svc === 'bing') {
+      url = 'https://www.bing.com/translator/?from=' +
+        (src === 'auto' ? '' : src) + '&to=' + tgt + '&text=' + t;
+    }
+    window.open(url, '_blank', 'noopener');
+    closeModal($('#translateModal'));
   });
 
   // ============================================================

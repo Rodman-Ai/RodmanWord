@@ -426,6 +426,7 @@
         <li><button data-action="compare">Compare…</button></li>
         <li><button data-action="encrypt">Save encrypted</button></li>
         <li><button data-action="customcss">Custom CSS</button></li>
+        <li><button data-action="translate">Translate…</button></li>
         <li><button data-action="about">About</button></li>
       </ul>
     </aside>
@@ -673,6 +674,57 @@
         <ul id="stylesList" class="snippet-list"></ul>
       </div>
       <footer><button class="btn primary" data-close-modal>Done</button></footer>
+    </div>
+  </div>
+
+  <!-- Translate modal -->
+  <div class="modal" id="translateModal" hidden>
+    <div class="modal-card">
+      <header><h3>Translate document</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Opens the document text in your chosen translator. No data stays in this app.</p>
+        <label>Source <select id="trSource" class="select">
+          <option value="auto">Auto-detect</option>
+          <option value="en">English</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="it">Italian</option>
+          <option value="pt">Portuguese</option>
+          <option value="ja">Japanese</option>
+          <option value="zh-CN">Chinese (Simplified)</option>
+        </select></label>
+        <label>Target <select id="trTarget" class="select">
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="it">Italian</option>
+          <option value="pt">Portuguese</option>
+          <option value="ja">Japanese</option>
+          <option value="zh-CN">Chinese (Simplified)</option>
+          <option value="ko">Korean</option>
+          <option value="ar">Arabic</option>
+          <option value="hi">Hindi</option>
+          <option value="ru">Russian</option>
+          <option value="en">English</option>
+        </select></label>
+        <label>Service
+          <select id="trService" class="select">
+            <option value="google">Google Translate</option>
+            <option value="deepl">DeepL</option>
+            <option value="bing">Bing Translator</option>
+          </select>
+        </label>
+        <label class="row">
+          <input type="checkbox" id="trSelectionOnly" /> Selected text only
+        </label>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="trOpenBtn">Open translator</button>
+      </footer>
     </div>
   </div>
 
