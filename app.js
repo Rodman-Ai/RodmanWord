@@ -2930,6 +2930,102 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section K — View modes (#80–#85)
+  // ============================================================
+
+  // #80 True outline view — full-document overlay with drag reorder
+  $('#outlineEditBtn')?.addEventListener('click', () => {
+    let overlay = document.querySelector('.outline-edit-overlay');
+    if (overlay) { overlay.remove(); return; }
+    overlay = document.createElement('div');
+    overlay.className = 'outline-edit-overlay';
+    overlay.innerHTML = '<header><span>Outline editor — drag to reorder, double-click to edit</span>' +
+      '<button class="icon-btn" title="Close">✕</button></header><ol></ol>';
+    overlay.querySelector('.icon-btn').addEventListener('click', () => overlay.remove());
+    const ol = overlay.querySelector('ol');
+    const headings = Array.from(editor.querySelectorAll('h1,h2,h3,h4'));
+    headings.forEach((h, i) => {
+      const li = document.createElement('li');
+      li.className = 'lvl-' + h.tagName.charAt(1);
+      li.draggable = true;
+      li.dataset.idx = i;
+      li.textContent = h.textContent || '(empty)';
+      li.addEventListener('dblclick', () => {
+        const v = prompt('Edit heading text:', h.textContent);
+        if (v != null) {
+          h.textContent = v;
+          li.textContent = v || '(empty)';
+          queueAutosave();
+        }
+      });
+      li.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', String(i));
+        li.classList.add('dragging');
+      });
+      li.addEventListener('dragend', () => li.classList.remove('dragging'));
+      li.addEventListener('dragover', (e) => e.preventDefault());
+      li.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        const toIdx = parseInt(li.dataset.idx, 10);
+        if (isNaN(fromIdx) || isNaN(toIdx) || fromIdx === toIdx) return;
+        const fromH = headings[fromIdx];
+        const toH = headings[toIdx];
+        if (fromH && toH) {
+          if (typeof moveSection === 'function') moveSection(fromH, toH);
+        }
+        overlay.remove();
+        $('#outlineEditBtn').click();
+      });
+      ol.appendChild(li);
+    });
+    document.body.appendChild(overlay);
+  });
+
+  // #81 Two-page spread
+  $('#twoPageBtn')?.addEventListener('click', () => {
+    document.body.classList.toggle('two-page-spread');
+  });
+
+  // #82 Side-by-side reading
+  $('#sxsReadingBtn')?.addEventListener('click', () => {
+    // Reuse the side-by-side compare modal; populate left with the
+    // current doc and right empty for reading.
+    if ($('#sxsLeft')) $('#sxsLeft').innerHTML = editor.innerHTML;
+    if ($('#sxsRightInput')) $('#sxsRightInput').placeholder = 'Paste text here for side-by-side reading…';
+    openModal($('#sideBySideModal'));
+  });
+
+  // #83 Mobile preview
+  $('#mobilePreviewBtn')?.addEventListener('click', () => {
+    document.body.classList.toggle('mobile-preview');
+    toast(document.body.classList.contains('mobile-preview')
+      ? 'Mobile preview ON' : 'Mobile preview OFF', 'info');
+  });
+
+  // #84 Full-screen editor
+  $('#fullscreenEditorBtn')?.addEventListener('click', () => {
+    document.body.classList.toggle('fullscreen-editor');
+    if (document.documentElement.requestFullscreen &&
+        document.body.classList.contains('fullscreen-editor')) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  });
+
+  // #85 Reading-mode dyslexia preset
+  $('#readingDyslexiaBtn')?.addEventListener('click', () => {
+    document.body.classList.toggle('dyslexia');
+    if (!document.body.classList.contains('reading-mode')) {
+      // Auto-enter reading mode if not already
+      if (typeof enterReadingMode === 'function') enterReadingMode();
+    }
+    toast('Dyslexia preset ' +
+      (document.body.classList.contains('dyslexia') ? 'ON' : 'OFF'), 'info');
+  });
+
+  // ============================================================
   // FEATURE: Section J — Search advanced (#74–#79)
   // ============================================================
   const STORE_SAVED_SEARCHES = 'rodmanword:savedSearches';

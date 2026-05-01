@@ -499,6 +499,98 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Two-page spread */
+body.two-page-spread .page-wrap {
+  zoom: 0.6;
+}
+body.two-page-spread .page {
+  display: inline-block;
+  vertical-align: top;
+  margin: 0 8px 0 8px !important;
+  transform: none !important;
+}
+body.two-page-spread .page-wrap::after {
+  content: ""; display: inline-block;
+  width: var(--page-width, 8.27in);
+  height: 1px;
+}
+
+/* Mobile preview frame */
+body.mobile-preview .workspace-main {
+  background: #222;
+  display: flex; justify-content: center; padding: 24px;
+}
+body.mobile-preview .page-wrap { padding: 0; }
+body.mobile-preview .page {
+  width: 375px !important;
+  min-height: 720px !important;
+  max-height: 720px;
+  border-radius: 24px;
+  border: 12px solid #111;
+  padding: 18px !important;
+  transform: none !important;
+  font-size: 14px;
+  overflow-y: auto;
+}
+
+/* Full-screen editor */
+body.fullscreen-editor .title-bar,
+body.fullscreen-editor .ribbon,
+body.fullscreen-editor .tabs,
+body.fullscreen-editor .status-bar,
+body.fullscreen-editor .ruler { display: none !important; }
+body.fullscreen-editor .workspace { background: var(--page-bg); }
+
+/* Side-by-side reading: reuse two-page spread overlap with sxs scroll  */
+
+/* Dyslexia preset for reading mode */
+body.reading-mode.dyslexia .editor {
+  font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif;
+  letter-spacing: 0.05em;
+  line-height: 2;
+  word-spacing: 0.15em;
+  background: #fffbe7;
+  color: #002b36;
+}
+
+/* Outline-edit pane */
+.outline-edit-overlay {
+  position: fixed;
+  inset: 80px 12% 80px 12%;
+  background: var(--page-bg);
+  border: 1px solid var(--ribbon-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  z-index: 110;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.outline-edit-overlay header {
+  padding: 8px 14px;
+  background: var(--ribbon-bg);
+  border-bottom: 1px solid var(--ribbon-border);
+  display: flex; align-items: center;
+  font-weight: 600;
+}
+.outline-edit-overlay header .icon-btn { margin-left: auto; }
+.outline-edit-overlay ol {
+  list-style: none;
+  margin: 0; padding: 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+.outline-edit-overlay li {
+  padding: 6px 10px;
+  margin: 2px 0;
+  border: 1px solid var(--ribbon-border);
+  border-radius: 4px;
+  cursor: grab;
+}
+.outline-edit-overlay li.lvl-2 { margin-left: 16px; }
+.outline-edit-overlay li.lvl-3 { margin-left: 32px; }
+.outline-edit-overlay li.lvl-4 { margin-left: 48px; }
+.outline-edit-overlay li.dragging { opacity: 0.4; }
+
 /* Multi-cursor + bracket match */
 .editor .rwd-extra-caret {
   position: absolute;
