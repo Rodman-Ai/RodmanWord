@@ -2930,6 +2930,171 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section L — Export / interop (#86–#95)
+  // ============================================================
+  function doExport(name, data, mime) {
+    const blob = data instanceof Blob ? data : new Blob([data], { type: mime || 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 100);
+  }
+
+  function exportOdt() {
+    if (!window.RodmanInterop) { toast('interop.js not loaded', 'error'); return; }
+    const bytes = window.RodmanInterop.odtExport(editor.innerHTML, docTitle.value);
+    if (!bytes) { toast('ODT export needs the docx ZIP utilities', 'error'); return; }
+    doExport(sanitizeFileName(docTitle.value) + '.odt',
+      new Blob([bytes], { type: 'application/vnd.oasis.opendocument.text' }));
+    toast('Exported .odt', 'success');
+  }
+  function exportRtf() {
+    if (!window.RodmanInterop) { toast('interop.js not loaded', 'error'); return; }
+    const rtf = window.RodmanInterop.rtfExport(editor.innerHTML, docTitle.value);
+    doExport(sanitizeFileName(docTitle.value) + '.rtf', rtf, 'application/rtf');
+    toast('Exported .rtf', 'success');
+  }
+  function exportEpub() {
+    if (!window.RodmanInterop) { toast('interop.js not loaded', 'error'); return; }
+    const bytes = window.RodmanInterop.epubExport(editor.innerHTML, docTitle.value);
+    if (!bytes) { toast('EPUB export needs the docx ZIP utilities', 'error'); return; }
+    doExport(sanitizeFileName(docTitle.value) + '.epub',
+      new Blob([bytes], { type: 'application/epub+zip' }));
+    toast('Exported .epub', 'success');
+  }
+  function exportAsciidoc() {
+    if (!window.RodmanInterop) { toast('interop.js not loaded', 'error'); return; }
+    const ad = window.RodmanInterop.asciidocExport(editor.innerHTML, docTitle.value);
+    doExport(sanitizeFileName(docTitle.value) + '.adoc', ad, 'text/asciidoc');
+    toast('Exported .adoc', 'success');
+  }
+  function exportLatex() {
+    if (!window.RodmanInterop) { toast('interop.js not loaded', 'error'); return; }
+    const tex = window.RodmanInterop.latexExport(editor.innerHTML, docTitle.value);
+    doExport(sanitizeFileName(docTitle.value) + '.tex', tex, 'application/x-tex');
+    toast('Exported .tex', 'success');
+  }
+
+  // Hook the existing exportMarkdown to add YAML front-matter support
+  if (typeof exportMarkdown === 'function') {
+    const __origMd = exportMarkdown;
+    window.__rwdHtmlToMarkdown = (html) => {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      return htmlToMarkdown(tmp);
+    };
+    exportMarkdown = function () {
+      if (!window.RodmanInterop) return __origMd();
+      const md = window.RodmanInterop.mdExport(editor.innerHTML, {
+        title: docTitle.value || undefined,
+        author: (docProps && docProps.author) || undefined,
+        date: new Date().toISOString().slice(0, 10),
+      });
+      doExport(sanitizeFileName(docTitle.value) + '.md', md, 'text/markdown');
+      toast('Exported .md', 'success');
+    };
+  }
+
+  // Markdown live preview pane
+  function openMdPreview() {
+    const ta = $('#mdInput');
+    const out = $('#mdRendered');
+    if (!ta || !out) return;
+    // Pre-populate from current doc as Markdown
+    if (window.__rwdHtmlToMarkdown) {
+      ta.value = window.__rwdHtmlToMarkdown(editor.innerHTML);
+    } else { ta.value = editor.innerText; }
+    function render() {
+      // Tiny Markdown → HTML
+      let md = ta.value;
+      md = md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      md = md.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+      md = md.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+      md = md.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+      md = md.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+      md = md.replace(/\*([^*]+)\*/g, '<i>$1</i>');
+      md = md.replace(/`([^`]+)`/g, '<code>$1</code>');
+      md = md.replace(/^\- (.*)$/gm, '<li>$1</li>');
+      md = md.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, (m) => '<ul>' + m + '</ul>');
+      md = md.replace(/\n\n+/g, '</p><p>');
+      out.innerHTML = '<p>' + md + '</p>';
+    }
+    ta.oninput = render;
+    render();
+    openModal($('#mdPreviewModal'));
+  }
+  $('#mdInsertBtn')?.addEventListener('click', () => {
+    const out = $('#mdRendered');
+    if (!out) return;
+    restoreSelection();
+    document.execCommand('insertHTML', false, out.innerHTML);
+    closeModal($('#mdPreviewModal'));
+    queueAutosave();
+  });
+
+  // Hook into backstage
+  setBackstageView = (function (orig) {
+    return function (action) {
+      if (action === 'export-odt') { exportOdt(); closeBackstage(); return; }
+      if (action === 'export-rtf') { exportRtf(); closeBackstage(); return; }
+      if (action === 'export-epub') { exportEpub(); closeBackstage(); return; }
+      if (action === 'export-asciidoc') { exportAsciidoc(); closeBackstage(); return; }
+      if (action === 'export-latex') { exportLatex(); closeBackstage(); return; }
+      if (action === 'md-preview') { closeBackstage(); openMdPreview(); return; }
+      return orig(action);
+    };
+  })(setBackstageView);
+
+  // Extend file picker for RTF / ODT / EPUB
+  const __existingFilePickerHandler = $('#filePicker').onchange;
+  $('#filePicker').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (/\.rtf$/i.test(file.name) || file.type === 'application/rtf') {
+      const text = await file.text();
+      editor.innerHTML = sanitizeImported(window.RodmanInterop.rtfImport(text));
+      docTitle.value = file.name.replace(/\.rtf$/i, '');
+      addRecent(docTitle.value);
+      queueAutosave();
+      e.target.value = '';
+      toast('Imported .rtf', 'success');
+      return;
+    }
+    if (/\.odt$/i.test(file.name) || file.type === 'application/vnd.oasis.opendocument.text') {
+      const buf = await file.arrayBuffer();
+      try {
+        const html = await window.RodmanInterop.odtImport(buf);
+        editor.innerHTML = sanitizeImported(html);
+        docTitle.value = file.name.replace(/\.odt$/i, '');
+        addRecent(docTitle.value);
+        queueAutosave();
+        toast('Imported .odt', 'success');
+      } catch (err) {
+        toast('ODT import failed: ' + err.message, 'error');
+      }
+      e.target.value = '';
+      return;
+    }
+    if (/\.epub$/i.test(file.name) || file.type === 'application/epub+zip') {
+      const buf = await file.arrayBuffer();
+      try {
+        const html = await window.RodmanInterop.epubImport(buf);
+        editor.innerHTML = sanitizeImported(html);
+        docTitle.value = file.name.replace(/\.epub$/i, '');
+        addRecent(docTitle.value);
+        queueAutosave();
+        toast('Imported .epub', 'success');
+      } catch (err) {
+        toast('EPUB import failed: ' + err.message, 'error');
+      }
+      e.target.value = '';
+      return;
+    }
+    // For other formats, fall back to existing handlers (already wired)
+  });
+
+  // ============================================================
   // FEATURE: Section K — View modes (#80–#85)
   // ============================================================
 

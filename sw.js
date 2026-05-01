@@ -1,5 +1,5 @@
 // RodmanWord service worker — offline app shell cache
-const VERSION = 'rwd-v5';
+const VERSION = 'rwd-v6';
 const APP_SHELL = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const APP_SHELL = [
   './app.js',
   './docx.js',
   './pdfio.js',
+  './interop.js',
   './manifest.webmanifest',
   './icon.svg',
 ];

@@ -589,6 +589,12 @@
         <li><button data-action="export-html">Export HTML</button></li>
         <li><button data-action="export-md">Export Markdown</button></li>
         <li><button data-action="export-txt">Export Text</button></li>
+        <li><button data-action="export-odt">Export ODT</button></li>
+        <li><button data-action="export-rtf">Export RTF</button></li>
+        <li><button data-action="export-epub">Export EPUB</button></li>
+        <li><button data-action="export-asciidoc">Export AsciiDoc</button></li>
+        <li><button data-action="export-latex">Export LaTeX</button></li>
+        <li><button data-action="md-preview">Markdown live preview</button></li>
         <li><button data-action="print">Print / PDF</button></li>
         <li><button data-action="printpreview">Print preview</button></li>
         <li><button data-action="recent">Recent</button></li>
@@ -910,6 +916,25 @@
         <div id="coverPageGrid" class="template-grid"></div>
       </div>
       <footer><button class="btn" data-close-modal>Close</button></footer>
+    </div>
+  </div>
+
+  <!-- Markdown live-preview modal -->
+  <div class="modal" id="mdPreviewModal" hidden>
+    <div class="modal-card lg" style="max-width:1100px">
+      <header><h3>Markdown live preview</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body" style="padding:0">
+        <div style="display:flex;gap:0;height:64vh">
+          <textarea id="mdInput" style="flex:1;border:none;border-right:1px solid var(--ribbon-border);padding:12px;font-family:'Courier New',monospace;font-size:13px" placeholder="# Markdown here…"></textarea>
+          <div id="mdRendered" style="flex:1;overflow:auto;padding:12px;background:var(--page-bg);font-size:13px"></div>
+        </div>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Close</button>
+        <button class="btn" id="mdInsertBtn">Insert into editor</button>
+      </footer>
     </div>
   </div>
 
@@ -1666,11 +1691,12 @@
   <!-- Watermark overlay -->
   <div id="watermarkOverlay" class="watermark-overlay" hidden></div>
 
-  <input type="file" id="filePicker" accept=".rwd,.html,.htm,.txt,.md,.rwd.enc,.docx,.pdf,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+  <input type="file" id="filePicker" accept=".rwd,.html,.htm,.txt,.md,.rwd.enc,.docx,.pdf,.rtf,.odt,.epub,application/json,application/pdf,application/rtf,application/epub+zip,application/vnd.oasis.opendocument.text,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
   <input type="file" id="imagePicker" accept="image/*" hidden />
 
   <script src="docx.js"></script>
   <script src="pdfio.js"></script>
+  <script src="interop.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

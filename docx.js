@@ -733,6 +733,9 @@
 
   // ---------- Public API ----------
   window.RodmanDocx = {
+    // Internal hooks reused by interop.js (ODT, EPUB)
+    __buildZip: buildZip,
+    __readZip: readZip,
     saveDocx(html, opts) {
       // opts can be a plain title string (back-compat) or
       // { title, header, footer } object.
