@@ -473,6 +473,21 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Live fields */
+.editor [data-field] {
+  background: rgba(43, 87, 154, 0.08);
+  border-radius: 2px;
+  padding: 0 2px;
+  cursor: default;
+}
+.editor [data-field]:hover {
+  background: rgba(43, 87, 154, 0.18);
+  outline: 1px dotted var(--primary);
+}
+[data-theme='dark'] .editor [data-field] {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 /* Inline math */
 .editor .rwd-math {
   font-family: 'Cambria Math', 'STIX Two Math', 'Times New Roman', serif;

@@ -2170,6 +2170,20 @@ ${editor.innerHTML}
   $('#insertHeaderBtn')?.addEventListener('click', () => focusEnd(docHeader));
   $('#insertFooterBtn')?.addEventListener('click', () => focusEnd(docFooter));
 
+  // Insert field dropdown (works in body, header, or footer).
+  $('#insertFieldSelect')?.addEventListener('change', (e) => {
+    const name = e.target.value;
+    e.target.value = '';
+    if (!name) return;
+    restoreSelection();
+    const html = '<span data-field="' + escapeHtml(name) +
+      '" contenteditable="false">…</span>';
+    document.execCommand('insertHTML', false, html);
+    // Refresh now so it shows the right value
+    refreshFields();
+    queueAutosave();
+  });
+
   // Page-number field: a span that picks up its number from the print
   // stylesheet's CSS counters. In screen view it just shows "1".
   $('#insertPageNumBtn')?.addEventListener('click', () => {
@@ -2492,6 +2506,61 @@ ${editor.innerHTML}
     const li = document.getElementById(id);
     if (li) li.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
+
+  // ============================================================
+  // FOUNDATION: Live-field engine ({page}, {pages}, {date}, …)
+  // ============================================================
+  // Each field is a span with data-field="<name>". On every editor
+  // change (and on doc load) we walk all such spans and refresh their
+  // text content. Most fields are global; the 'page' field counts
+  // page-break HRs that precede the field in document order.
+  const FIELDS = {
+    page(el) {
+      // Count <hr class="page-break"> and equivalent break elements
+      // that come before this element in the document.
+      let n = 1;
+      const breaks = editor.querySelectorAll('hr.page-break, .rwd-section-break');
+      breaks.forEach((b) => {
+        if (b.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) n++;
+      });
+      // The header/footer are children of .page, not .editor — they
+      // logically belong to "all pages", so for fields inside them
+      // we'd want the rendered page number; on screen, that's "1".
+      if (!editor.contains(el)) return '1';
+      return String(n);
+    },
+    pages() {
+      const breaks = editor.querySelectorAll('hr.page-break, .rwd-section-break');
+      return String(breaks.length + 1);
+    },
+    date() { return new Date().toLocaleDateString(); },
+    time() { return new Date().toLocaleTimeString(); },
+    datetime() { return new Date().toLocaleString(); },
+    docTitle() { return docTitle.value || 'Document'; },
+    author() { return (docProps && docProps.author) || ''; },
+    wordCount() {
+      try { return calcStats().words.toLocaleString(); } catch { return '0'; }
+    },
+  };
+
+  function refreshFields(root) {
+    const scope = root || document;
+    scope.querySelectorAll('[data-field]').forEach((el) => {
+      const name = el.dataset.field;
+      const fn = FIELDS[name];
+      if (fn) {
+        try { el.textContent = fn(el); } catch {}
+      }
+    });
+  }
+
+  let __rwdFieldT;
+  editor.addEventListener('input', () => {
+    clearTimeout(__rwdFieldT);
+    __rwdFieldT = setTimeout(refreshFields, 200);
+  });
+  // Also refresh after a short delay on init, so restored docs pick up.
+  setTimeout(refreshFields, 80);
 
   // ============================================================
   // FEATURE: Equation editor (LaTeX-style → MathML)
