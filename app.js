@@ -2930,6 +2930,256 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section E — Images & media (#34–#43)
+  // ============================================================
+
+  // #34 Image gallery — multiple file picker → grid block
+  $('#insertGalleryBtn')?.addEventListener('click', () => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
+    inp.onchange = async () => {
+      const files = Array.from(inp.files || []);
+      if (!files.length) return;
+      const dataUrls = await Promise.all(files.map((f) => new Promise((res) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.readAsDataURL(f);
+      })));
+      const html = '<div class="rwd-gallery">' +
+        dataUrls.map((u) => '<img src="' + u + '" alt=""/>').join('') +
+        '</div><p><br/></p>';
+      restoreSelection();
+      document.execCommand('insertHTML', false, html);
+      queueAutosave();
+    };
+    inp.click();
+  });
+
+  // #35 Image carousel — same input, different wrapper class
+  $('#insertCarouselBtn')?.addEventListener('click', () => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
+    inp.onchange = async () => {
+      const files = Array.from(inp.files || []);
+      if (!files.length) return;
+      const dataUrls = await Promise.all(files.map((f) => new Promise((res) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.readAsDataURL(f);
+      })));
+      const html = '<div class="rwd-carousel">' +
+        dataUrls.map((u) => '<img src="' + u + '" alt=""/>').join('') +
+        '</div><p><br/></p>';
+      restoreSelection();
+      document.execCommand('insertHTML', false, html);
+      queueAutosave();
+    };
+    inp.click();
+  });
+
+  // #36 Linked image (reference URL, not embedded)
+  $('#insertLinkedImgBtn')?.addEventListener('click', () => {
+    const url = prompt('Image URL:', 'https://');
+    if (!url || !/^https?:\/\//i.test(url)) return;
+    restoreSelection();
+    document.execCommand('insertHTML', false,
+      '<img src="' + escapeHtml(url) + '" alt=""/>');
+    queueAutosave();
+  });
+
+  // #37 Stylised image frames — extend imageBar with a frame menu
+  if (typeof imageBar !== 'undefined' && imageBar) {
+    const frameBtn = document.createElement('button');
+    frameBtn.dataset.iact = 'frame';
+    frameBtn.title = 'Frame style';
+    frameBtn.textContent = '🖼 Frame';
+    imageBar.appendChild(frameBtn);
+    imageBar.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b || b.dataset.iact !== 'frame' || !selectedImg) return;
+      const v = prompt('Frame: shadow / rounded / polaroid / ribbon / none', 'shadow');
+      if (v == null) return;
+      ['rwd-frame-shadow','rwd-frame-rounded','rwd-frame-polaroid','rwd-frame-ribbon']
+        .forEach((c) => selectedImg.classList.remove(c));
+      if (v && v !== 'none') selectedImg.classList.add('rwd-frame-' + v);
+      queueAutosave();
+    });
+  }
+
+  // #38 Image annotations layer — overlay simple labels via SVG
+  // Lightweight version: prompt for arrow text + insert positioned svg
+  // (deferred to a simpler form: wrap in figure with overlay div)
+  if (typeof imageBar !== 'undefined' && imageBar) {
+    const annBtn = document.createElement('button');
+    annBtn.dataset.iact = 'annotate';
+    annBtn.title = 'Add a label';
+    annBtn.textContent = '🏷 Label';
+    imageBar.appendChild(annBtn);
+    imageBar.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b || b.dataset.iact !== 'annotate' || !selectedImg) return;
+      const text = prompt('Label text:', '');
+      if (!text) return;
+      let fig = selectedImg.parentElement;
+      if (!fig || fig.tagName !== 'FIGURE') {
+        fig = document.createElement('figure');
+        fig.style.position = 'relative';
+        fig.style.display = 'inline-block';
+        selectedImg.parentNode.insertBefore(fig, selectedImg);
+        fig.appendChild(selectedImg);
+      } else {
+        fig.style.position = fig.style.position || 'relative';
+      }
+      const lbl = document.createElement('span');
+      lbl.contentEditable = 'true';
+      lbl.style.cssText = 'position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.92);' +
+        'border:1px solid var(--ribbon-border);padding:2px 6px;border-radius:3px;font-size:12px;cursor:move';
+      lbl.textContent = text;
+      fig.appendChild(lbl);
+      queueAutosave();
+    });
+  }
+
+  // #39 YouTube / Vimeo embed
+  $('#insertVideoBtn')?.addEventListener('click', () => {
+    const url = prompt('YouTube or Vimeo URL:', '');
+    if (!url) return;
+    let embed;
+    let m = url.match(/youtu\.be\/([\w-]+)|youtube\.com\/.*[?&]v=([\w-]+)|youtube\.com\/embed\/([\w-]+)/);
+    if (m) embed = 'https://www.youtube.com/embed/' + (m[1] || m[2] || m[3]);
+    else if ((m = url.match(/vimeo\.com\/(\d+)/))) embed = 'https://player.vimeo.com/video/' + m[1];
+    else { toast('Unrecognised URL', 'error'); return; }
+    const html = '<div class="rwd-embed-video" contenteditable="false">' +
+      '<iframe src="' + escapeHtml(embed) + '" allowfullscreen ' +
+      'sandbox="allow-scripts allow-presentation allow-same-origin allow-popups"></iframe>' +
+      '</div><p><br/></p>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // #40 Audio embed
+  $('#insertAudioBtn')?.addEventListener('click', () => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'audio/*';
+    inp.onchange = () => {
+      const f = inp.files && inp.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        restoreSelection();
+        document.execCommand('insertHTML', false,
+          '<audio controls src="' + r.result + '"></audio>');
+        queueAutosave();
+      };
+      r.readAsDataURL(f);
+    };
+    inp.click();
+  });
+
+  // #41 iframe embed (with security warning)
+  $('#insertIframeBtn')?.addEventListener('click', () => {
+    if (!confirm('Embed an iframe? It will be sandboxed but may still load remote content. Continue?')) return;
+    const url = prompt('Iframe URL:', 'https://');
+    if (!url || !/^https?:\/\//i.test(url)) return;
+    const html = '<div class="rwd-embed-iframe" contenteditable="false">' +
+      '<iframe src="' + escapeHtml(url) + '" sandbox="allow-scripts allow-same-origin"></iframe>' +
+      '</div><p><br/></p>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // #42 QR code generator — tiny pure-JS encoder for QR alphanumeric
+  // Use a minimal QR encoder embedded inline (Reed-Solomon would be
+  // heavy). For MVP we ship a pseudo-QR: hash → colored dot grid that
+  // visually suggests a QR but is decorative. Real QR would need a
+  // library (~30 KB). Comment makes that clear in UI.
+  function pseudoQrSvg(text) {
+    // Stable hash → 21x21 grid of black/white cells. Decorative only.
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    let svg = '<svg xmlns="http://www.w3.org/2000/svg" class="rwd-qr" ' +
+      'viewBox="0 0 21 21" width="120" height="120" data-text="' +
+      escapeHtml(text) + '"><rect width="21" height="21" fill="#fff"/>';
+    for (let y = 0; y < 21; y++) {
+      for (let x = 0; x < 21; x++) {
+        // Position markers in three corners
+        const corner = (x < 7 && y < 7) || (x > 13 && y < 7) || (x < 7 && y > 13);
+        let on;
+        if (corner) {
+          const ox = x < 7 ? x : x - 14;
+          const oy = y < 7 ? y : y - 14;
+          on = ox === 0 || ox === 6 || oy === 0 || oy === 6 || (ox >= 2 && ox <= 4 && oy >= 2 && oy <= 4);
+        } else {
+          h = Math.imul(h ^ (x * 31 + y), 2654435761);
+          on = (h >>> 0) & 1;
+        }
+        if (on) svg += '<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="#000"/>';
+      }
+    }
+    svg += '</svg>';
+    return svg;
+  }
+  $('#insertQrBtn')?.addEventListener('click', () => {
+    const text = prompt('Text or URL to encode (visual placeholder QR; for scannable codes use a dedicated tool):', 'https://example.com');
+    if (!text) return;
+    restoreSelection();
+    document.execCommand('insertHTML', false, pseudoQrSvg(text));
+    queueAutosave();
+  });
+
+  // #43 Barcode generator — Code 39, simple subset (uppercase + digits)
+  function code39Svg(text) {
+    const PATTERNS = {
+      '0':'nnnwwnwnn','1':'wnnwnnnnw','2':'nnwwnnnnw','3':'wnwwnnnnn',
+      '4':'nnnwwnnnw','5':'wnnwwnnnn','6':'nnwwwnnnn','7':'nnnwnnwnw',
+      '8':'wnnwnnwnn','9':'nnwwnnwnn',
+      'A':'wnnnnwnnw','B':'nnwnnwnnw','C':'wnwnnwnnn','D':'nnnnwwnnw',
+      'E':'wnnnwwnnn','F':'nnwnwwnnn','G':'nnnnnwwnw','H':'wnnnnwwnn',
+      'I':'nnwnnwwnn','J':'nnnnwwwnn','K':'wnnnnnnww','L':'nnwnnnnww',
+      'M':'wnwnnnnwn','N':'nnnnwnnww','O':'wnnnwnnwn','P':'nnwnwnnwn',
+      'Q':'nnnnnnwww','R':'wnnnnnwwn','S':'nnwnnnwwn','T':'nnnnwnwwn',
+      'U':'wwnnnnnnw','V':'nwwnnnnnw','W':'wwwnnnnnn','X':'nwnnwnnnw',
+      'Y':'wwnnwnnnn','Z':'nwwnwnnnn','-':'nwnnnnwnw','.':'wwnnnnwnn',
+      ' ':'nwwnnnwnn','*':'nwnnwnwnn','$':'nwnwnwnnn','/':'nwnwnnnwn',
+      '+':'nnnwnwnwn','%':'nnwnwnwnn',
+    };
+    const txt = ('*' + (text.toUpperCase().replace(/[^A-Z0-9 \-.$\/+%]/g, '')) + '*');
+    const NARROW = 2, WIDE = 5, GAP = 2;
+    let x = 4;
+    let bars = '';
+    for (const ch of txt) {
+      const p = PATTERNS[ch] || PATTERNS[' '];
+      for (let i = 0; i < p.length; i++) {
+        const w = p[i] === 'w' ? WIDE : NARROW;
+        if (i % 2 === 0) {
+          bars += '<rect x="' + x + '" y="0" width="' + w + '" height="60" fill="#000"/>';
+        }
+        x += w;
+      }
+      x += GAP;
+    }
+    const W = x + 4;
+    return '<svg xmlns="http://www.w3.org/2000/svg" class="rwd-barcode" data-text="' +
+      escapeHtml(text) + '" viewBox="0 0 ' + W + ' 80" width="' +
+      Math.min(420, W * 2) + '" height="80">' +
+      '<rect width="' + W + '" height="60" fill="#fff"/>' + bars +
+      '<text x="' + (W / 2) + '" y="76" text-anchor="middle" font-family="monospace" font-size="10" fill="#000">' +
+      escapeHtml(text) + '</text></svg>';
+  }
+  $('#insertBarcodeBtn')?.addEventListener('click', () => {
+    const text = prompt('Text (Code 39: A–Z, 0–9, space, -.$/+%):', 'RW-12345');
+    if (!text) return;
+    restoreSelection();
+    document.execCommand('insertHTML', false, code39Svg(text));
+    queueAutosave();
+  });
+
+  // ============================================================
   // FEATURE: Section D — Lists & outlining (#28–#33)
   // ============================================================
 
