@@ -2690,6 +2690,76 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section breaks (Tier 1, gap #4)
+  // ============================================================
+  // A section break is an HR-like element that splits the document
+  // into sections. Each section can declare its own orientation /
+  // columns / margins via data attributes; we re-apply those to the
+  // .page element when the cursor lands inside that section.
+  $('#sectionBreakBtn')?.addEventListener('click', () => {
+    const orientationVal = prompt(
+      'Orientation for the next section: portrait / landscape',
+      'portrait'
+    );
+    if (!orientationVal) return;
+    const cols = prompt('Columns (1, 2, or 3):', '1') || '1';
+    const summary = orientationVal + ', ' + cols + ' col';
+    const html = '<hr class="rwd-section-break" contenteditable="false"' +
+      ' data-orientation="' + escapeHtml(orientationVal) +
+      '" data-columns="' + escapeHtml(cols) +
+      '" data-summary="' + escapeHtml(summary) + '"/><p><br/></p>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+    refreshFields();
+  });
+
+  // Click a section break to edit its settings
+  editor.addEventListener('click', (e) => {
+    const br = e.target.closest && e.target.closest('.rwd-section-break');
+    if (!br) return;
+    e.preventDefault();
+    const o = prompt('Orientation: portrait / landscape',
+      br.dataset.orientation || 'portrait');
+    if (!o) return;
+    const c = prompt('Columns (1 / 2 / 3):',
+      br.dataset.columns || '1') || '1';
+    br.dataset.orientation = o;
+    br.dataset.columns = c;
+    br.dataset.summary = o + ', ' + c + ' col';
+    queueAutosave();
+    applySectionAtCaret();
+  });
+
+  // When the caret moves, re-apply the active section's layout to .page
+  function activeSectionFor(el) {
+    if (!el || !editor.contains(el)) return null;
+    let last = null;
+    editor.querySelectorAll('.rwd-section-break').forEach((b) => {
+      if (b.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) {
+        last = b;
+      }
+    });
+    return last;
+  }
+  function applySectionAtCaret() {
+    const sel = window.getSelection();
+    let n = sel && sel.anchorNode;
+    if (n && n.nodeType !== 1) n = n.parentElement;
+    const br = activeSectionFor(n);
+    if (!br) return;
+    const o = br.dataset.orientation || 'portrait';
+    const c = br.dataset.columns || '1';
+    page.classList.toggle('landscape', o === 'landscape');
+    page.classList.toggle('portrait', o !== 'landscape');
+    page.classList.remove('cols-1', 'cols-2', 'cols-3');
+    page.classList.add('cols-' + c);
+  }
+  document.addEventListener('selectionchange', () => {
+    if (document.activeElement === editor) applySectionAtCaret();
+  });
+
+  // ============================================================
   // FEATURE: Custom paragraph styles (Tier 1, gap #5)
   // ============================================================
   const STORE_STYLES = 'rodmanword:styles';

@@ -473,6 +473,31 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Section breaks */
+.editor .rwd-section-break {
+  display: block;
+  border: none;
+  border-top: 2px dashed var(--primary);
+  margin: 18px 0;
+  height: 0;
+  position: relative;
+  page-break-after: always;
+  break-after: page;
+}
+.editor .rwd-section-break::before {
+  content: "§ Section break — " attr(data-summary);
+  position: absolute;
+  top: -10px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--page-bg);
+  color: var(--primary);
+  padding: 0 8px;
+  font-size: 10pt;
+  font-style: italic;
+  cursor: pointer;
+}
+.editor .rwd-section-break:hover::before { text-decoration: underline; }
+
 /* Citations */
 .editor .rwd-cite {
   color: var(--primary);
