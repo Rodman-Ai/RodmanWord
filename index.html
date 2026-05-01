@@ -302,6 +302,10 @@
             <span>Navigation</span>
           </label>
           <label class="control switch">
+            <input type="checkbox" id="commentsPaneToggle" />
+            <span>Comments</span>
+          </label>
+          <label class="control switch">
             <input type="checkbox" id="spellToggle" checked />
             <span>Spell check</span>
           </label>
@@ -619,23 +623,44 @@
     </div>
   </div>
 
-  <!-- Comment dialog -->
+  <!-- Comment thread dialog -->
   <div class="modal" id="commentModal" hidden>
     <div class="modal-card">
-      <header><h3 id="commentModalTitle">Add comment</h3>
+      <header>
+        <h3 id="commentModalTitle">Comment</h3>
+        <span style="flex:1"></span>
+        <label class="row" style="color:#fff;font-size:12px;margin:0 8px">
+          <input type="checkbox" id="commentResolved" /> Resolved
+        </label>
         <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
       </header>
       <div class="modal-body">
         <p id="commentSelectionPreview" class="muted"></p>
-        <label>Comment <textarea id="commentText" rows="4"></textarea></label>
+        <div id="commentReplies" class="comment-replies"></div>
+        <label>Reply <textarea id="commentText" rows="3" placeholder="Type a reply… use @name to mention"></textarea></label>
       </div>
       <footer>
-        <button class="btn" id="deleteCommentBtn" hidden>Delete</button>
-        <button class="btn" data-close-modal>Cancel</button>
-        <button class="btn primary" id="saveCommentBtn">Save</button>
+        <button class="btn" id="deleteCommentBtn" hidden>Delete thread</button>
+        <button class="btn" data-close-modal>Close</button>
+        <button class="btn primary" id="saveCommentBtn">Add reply</button>
       </footer>
     </div>
   </div>
+
+  <!-- Comments side panel -->
+  <aside class="comments-pane" id="commentsPane" hidden>
+    <header>
+      <span>Comments</span>
+      <span id="commentsCount" class="muted" style="margin-left:auto;font-size:11px"></span>
+      <button class="icon-btn" id="commentsCloseBtn" aria-label="Close">✕</button>
+    </header>
+    <div class="comments-filter">
+      <label class="row" style="font-size:12px;color:var(--muted)">
+        <input type="checkbox" id="showResolvedComments" /> Show resolved
+      </label>
+    </div>
+    <ol id="commentsList"></ol>
+  </aside>
 
   <!-- Table mini-toolbar -->
   <div id="tableBar" class="float-bar" hidden>

@@ -938,6 +938,7 @@
         margins: margins.value
       },
       properties: docProps || {},
+      threads: typeof threads === 'object' ? threads : {},
       savedAt: new Date().toISOString()
     };
     downloadBlob(
@@ -1085,12 +1086,18 @@ ${editor.innerHTML}
       docTitle.value = data.title || file.name.replace(/\.rwd\.enc$/i, '');
       if (docHeader) docHeader.innerHTML = sanitizeImported(data.header || '');
       if (docFooter) docFooter.innerHTML = sanitizeImported(data.footer || '');
+      if (data.threads && typeof data.threads === 'object') {
+        threads = data.threads;
+        persistThreads();
+      }
       if (data.layout) {
         pageSize.value = data.layout.size || pageSize.value;
         orientation.value = data.layout.orientation || orientation.value;
         margins.value = data.layout.margins || margins.value;
         applyLayout();
       }
+      applyResolvedClasses();
+      rebuildCommentsPane();
       addRecent(docTitle.value);
       queueAutosave();
       closeBackstage();
@@ -1143,12 +1150,18 @@ ${editor.innerHTML}
           docTitle.value = data.title || file.name.replace(/\.rwd$/, '');
           if (docHeader) docHeader.innerHTML = sanitizeImported(data.header || '');
           if (docFooter) docFooter.innerHTML = sanitizeImported(data.footer || '');
+          if (data.threads && typeof data.threads === 'object') {
+            threads = data.threads;
+            persistThreads();
+          }
           if (data.layout) {
             pageSize.value = data.layout.size || pageSize.value;
             orientation.value = data.layout.orientation || orientation.value;
             margins.value = data.layout.margins || margins.value;
             applyLayout();
           }
+          applyResolvedClasses();
+          rebuildCommentsPane();
         } catch {
           alert('Could not read this RodmanWord file.');
           return;
@@ -1813,6 +1826,7 @@ ${editor.innerHTML}
       footer: docFooter ? docFooter.innerHTML : '',
       layout: { size: pageSize.value, orientation: orientation.value, margins: margins.value },
       properties: docProps || {},
+      threads: typeof threads === 'object' ? threads : {},
       savedAt: new Date().toISOString(),
     });
     const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -4308,22 +4322,112 @@ ${editor.innerHTML}
   });
 
   // ============================================================
-  // FEATURE: Comments / sticky notes
+  // FEATURE: Threaded comments with @-mentions and resolve
   // ============================================================
+  const STORE_THREADS = 'rodmanword:threads';
   const commentModal = $('#commentModal');
   const commentModalTitle = $('#commentModalTitle');
+  const commentResolved = $('#commentResolved');
+  const commentRepliesEl = $('#commentReplies');
   const deleteCommentBtn = $('#deleteCommentBtn');
   let pendingCommentRange = null;
   let editingCommentSpan = null;
+  let editingThreadId = null;
+  let threads = {};
+  try { threads = JSON.parse(localStorage.getItem(STORE_THREADS) || '{}'); } catch {}
+
+  function persistThreads() {
+    try { localStorage.setItem(STORE_THREADS, JSON.stringify(threads)); } catch {}
+  }
+
+  function newThreadId() {
+    return 'th-' + Date.now().toString(36) + '-' +
+      Math.floor(Math.random() * 1e6).toString(36);
+  }
+
+  function currentAuthor() {
+    return (docProps && docProps.author && docProps.author.trim()) || 'You';
+  }
+
+  function migrateLegacyComments() {
+    // Convert any old-style <span class="rwd-comment" data-comment="text">
+    // into the new threaded form. Each old comment becomes a single reply.
+    let migrated = 0;
+    editor.querySelectorAll('.rwd-comment').forEach((span) => {
+      if (span.dataset.threadId) return;
+      const id = newThreadId();
+      span.dataset.threadId = id;
+      const text = span.dataset.comment || span.title || '';
+      threads[id] = {
+        resolved: false,
+        replies: text ? [{
+          author: currentAuthor(),
+          at: new Date().toISOString(),
+          text,
+        }] : [],
+      };
+      delete span.dataset.comment;
+      span.title = text;
+      migrated++;
+    });
+    if (migrated) persistThreads();
+  }
+
+  function escapeReplyHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  function renderMentionsInText(s) {
+    return escapeReplyHtml(s).replace(
+      /(^|\s)@([\w][\w.-]{0,48})/g,
+      (m, p, name) => p + '<span class="mention">@' + name + '</span>'
+    );
+  }
+
+  function renderThread(id) {
+    const t = threads[id] || { replies: [] };
+    commentRepliesEl.innerHTML = '';
+    if (!t.replies.length) {
+      commentRepliesEl.innerHTML =
+        '<p class="muted" style="font-style:italic">No replies yet — add the first one below.</p>';
+      return;
+    }
+    t.replies.forEach((r, idx) => {
+      const card = document.createElement('div');
+      card.className = 'comment-reply';
+      const dt = new Date(r.at);
+      card.innerHTML =
+        '<div class="meta"><span><b>' + escapeReplyHtml(r.author || 'Anonymous') +
+        '</b> · ' + escapeReplyHtml(dt.toLocaleString()) + '</span>' +
+        '<button class="delete-btn" data-idx="' + idx + '">Delete</button></div>' +
+        '<div class="body">' + renderMentionsInText(r.text || '') + '</div>';
+      card.querySelector('.delete-btn').addEventListener('click', () => {
+        t.replies.splice(idx, 1);
+        persistThreads();
+        renderThread(id);
+        rebuildCommentsPane();
+        queueAutosave();
+      });
+      commentRepliesEl.appendChild(card);
+    });
+  }
 
   function openCommentModalForNew() {
     editingCommentSpan = null;
+    editingThreadId = null;
     commentModalTitle.textContent = 'Add comment';
     deleteCommentBtn.hidden = true;
+    commentResolved.checked = false;
     $('#commentSelectionPreview').textContent =
       '“' + pendingCommentRange.toString().slice(0, 80) +
       (pendingCommentRange.toString().length > 80 ? '…' : '') + '”';
+    commentRepliesEl.innerHTML = '';
     $('#commentText').value = '';
+    $('#saveCommentBtn').textContent = 'Add comment';
     openModal(commentModal);
     setTimeout(() => $('#commentText').focus(), 50);
   }
@@ -4331,11 +4435,33 @@ ${editor.innerHTML}
   function openCommentModalForEdit(span) {
     editingCommentSpan = span;
     pendingCommentRange = null;
-    commentModalTitle.textContent = 'Edit comment';
+    let id = span.dataset.threadId;
+    if (!id) {
+      // Legacy single-comment span; migrate now
+      id = newThreadId();
+      span.dataset.threadId = id;
+      const text = span.dataset.comment || span.title || '';
+      threads[id] = {
+        resolved: false,
+        replies: text ? [{
+          author: currentAuthor(),
+          at: new Date().toISOString(),
+          text,
+        }] : [],
+      };
+      delete span.dataset.comment;
+      persistThreads();
+    }
+    editingThreadId = id;
+    commentModalTitle.textContent = 'Comment thread';
     deleteCommentBtn.hidden = false;
+    commentResolved.checked = !!(threads[id] && threads[id].resolved);
     $('#commentSelectionPreview').textContent =
-      '“' + span.textContent.slice(0, 80) + (span.textContent.length > 80 ? '…' : '') + '”';
-    $('#commentText').value = span.dataset.comment || '';
+      '“' + span.textContent.slice(0, 80) +
+      (span.textContent.length > 80 ? '…' : '') + '”';
+    renderThread(id);
+    $('#commentText').value = '';
+    $('#saveCommentBtn').textContent = 'Add reply';
     openModal(commentModal);
     setTimeout(() => $('#commentText').focus(), 50);
   }
@@ -4352,23 +4478,42 @@ ${editor.innerHTML}
 
   $('#saveCommentBtn').addEventListener('click', () => {
     const text = $('#commentText').value.trim();
-    if (editingCommentSpan) {
+    // Reply to existing thread
+    if (editingThreadId && editingCommentSpan) {
       if (text) {
-        editingCommentSpan.dataset.comment = text;
-        editingCommentSpan.title = text;
+        threads[editingThreadId].replies.push({
+          author: currentAuthor(),
+          at: new Date().toISOString(),
+          text,
+        });
+        const last = text.split('\n').slice(-1)[0];
+        editingCommentSpan.title = last.slice(0, 200);
+        persistThreads();
+        renderThread(editingThreadId);
+        $('#commentText').value = '';
+        rebuildCommentsPane();
         queueAutosave();
       }
-      editingCommentSpan = null;
-      closeModal(commentModal);
       return;
     }
+    // New thread
     if (!text || !pendingCommentRange) {
       closeModal(commentModal);
       return;
     }
+    const id = newThreadId();
+    threads[id] = {
+      resolved: false,
+      replies: [{
+        author: currentAuthor(),
+        at: new Date().toISOString(),
+        text,
+      }],
+    };
+    persistThreads();
     const span = document.createElement('span');
     span.className = 'rwd-comment';
-    span.dataset.comment = text;
+    span.dataset.threadId = id;
     span.title = text;
     try {
       span.appendChild(pendingCommentRange.extractContents());
@@ -4376,26 +4521,128 @@ ${editor.innerHTML}
     } catch {}
     pendingCommentRange = null;
     closeModal(commentModal);
+    rebuildCommentsPane();
+    queueAutosave();
+  });
+
+  commentResolved.addEventListener('change', () => {
+    if (!editingThreadId) return;
+    threads[editingThreadId].resolved = commentResolved.checked;
+    if (editingCommentSpan) {
+      editingCommentSpan.classList.toggle('resolved', commentResolved.checked);
+    }
+    persistThreads();
+    rebuildCommentsPane();
     queueAutosave();
   });
 
   deleteCommentBtn.addEventListener('click', () => {
     if (!editingCommentSpan) return;
     const span = editingCommentSpan;
+    const id = span.dataset.threadId;
+    if (id) { delete threads[id]; persistThreads(); }
     const parent = span.parentNode;
     while (span.firstChild) parent.insertBefore(span.firstChild, span);
     parent.removeChild(span);
     editingCommentSpan = null;
+    editingThreadId = null;
     closeModal(commentModal);
+    rebuildCommentsPane();
     queueAutosave();
   });
 
-  // Click a comment to edit it via the modal
+  // Click a comment to view/edit its thread
   editor.addEventListener('click', (e) => {
     const span = e.target.closest && e.target.closest('.rwd-comment');
     if (!span) return;
     e.preventDefault();
     openCommentModalForEdit(span);
+  });
+
+  // Re-apply .resolved class to comment spans on load
+  function applyResolvedClasses() {
+    editor.querySelectorAll('.rwd-comment').forEach((span) => {
+      const id = span.dataset.threadId;
+      if (id && threads[id] && threads[id].resolved) {
+        span.classList.add('resolved');
+      } else {
+        span.classList.remove('resolved');
+      }
+    });
+  }
+
+  // ============================================================
+  // FEATURE: Comments side panel
+  // ============================================================
+  const commentsPane = $('#commentsPane');
+  const commentsPaneToggle = $('#commentsPaneToggle');
+  const commentsList = $('#commentsList');
+  const commentsCount = $('#commentsCount');
+  const showResolvedComments = $('#showResolvedComments');
+
+  function rebuildCommentsPane() {
+    if (!commentsPane || commentsPane.hidden) return;
+    const spans = Array.from(editor.querySelectorAll('.rwd-comment'));
+    const showResolved = showResolvedComments && showResolvedComments.checked;
+    commentsList.innerHTML = '';
+    let visible = 0, total = 0;
+    spans.forEach((span) => {
+      const id = span.dataset.threadId;
+      if (!id || !threads[id]) return;
+      total++;
+      const t = threads[id];
+      if (t.resolved && !showResolved) return;
+      visible++;
+      const li = document.createElement('li');
+      if (t.resolved) li.classList.add('resolved');
+      const last = t.replies[t.replies.length - 1];
+      const lastText = last ? last.text : '(empty)';
+      const sel = span.textContent.trim().slice(0, 60);
+      li.innerHTML =
+        '<div class="selection-preview">“' + escapeReplyHtml(sel) +
+        (span.textContent.length > 60 ? '…' : '') + '”</div>' +
+        '<div class="last-reply"><b>' + escapeReplyHtml(last ? last.author : '—') +
+        ':</b> ' + renderMentionsInText(lastText) +
+        '<span class="reply-count">' + t.replies.length + '</span></div>';
+      li.addEventListener('click', () => {
+        span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => openCommentModalForEdit(span), 200);
+      });
+      commentsList.appendChild(li);
+    });
+    if (!visible) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = total
+        ? 'All ' + total + ' comments resolved.'
+        : 'No comments yet.';
+      commentsList.appendChild(li);
+    }
+    commentsCount.textContent = visible + ' of ' + total;
+  }
+
+  if (commentsPaneToggle) {
+    commentsPaneToggle.addEventListener('change', () => {
+      commentsPane.hidden = !commentsPaneToggle.checked;
+      if (commentsPaneToggle.checked) rebuildCommentsPane();
+    });
+  }
+  $('#commentsCloseBtn')?.addEventListener('click', () => {
+    commentsPane.hidden = true;
+    if (commentsPaneToggle) commentsPaneToggle.checked = false;
+  });
+  showResolvedComments?.addEventListener('change', rebuildCommentsPane);
+
+  // Migrate legacy comments and apply resolved styling on init
+  setTimeout(() => {
+    migrateLegacyComments();
+    applyResolvedClasses();
+    rebuildCommentsPane();
+  }, 50);
+  // Re-render the panel whenever the editor changes
+  editor.addEventListener('input', () => {
+    clearTimeout(window.__rwdCmtT);
+    window.__rwdCmtT = setTimeout(rebuildCommentsPane, 400);
   });
 
   // ============================================================
