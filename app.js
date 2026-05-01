@@ -2689,6 +2689,158 @@ ${editor.innerHTML}
     if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 
+  // ============================================================
+  // FEATURE: Citations + bibliography (Tier 1, gap #8)
+  // ============================================================
+  const STORE_CITES = 'rodmanword:citations';
+  let citations = {};
+  try { citations = JSON.parse(localStorage.getItem(STORE_CITES) || '{}'); } catch {}
+  function persistCites() {
+    try { localStorage.setItem(STORE_CITES, JSON.stringify(citations)); } catch {}
+  }
+
+  function citationId(c) {
+    return 'cit-' + (c.author || 'anon').toLowerCase().replace(/[^a-z0-9]/g, '') +
+      '-' + (c.year || '');
+  }
+
+  function renderCitList() {
+    const ul = $('#citList');
+    if (!ul) return;
+    ul.innerHTML = '';
+    const ids = Object.keys(citations);
+    if (!ids.length) {
+      ul.innerHTML = '<li class="empty">No sources yet.</li>';
+      return;
+    }
+    ids.forEach((id) => {
+      const c = citations[id];
+      const li = document.createElement('li');
+      li.innerHTML =
+        '<span class="name">' + escapeHtml(c.author || 'Anon') +
+        ' (' + escapeHtml(c.year || 'n.d.') + '). ' +
+        escapeHtml(c.title || 'Untitled') + '</span>' +
+        '<span class="actions">' +
+          '<button data-act="insert">Insert</button>' +
+          '<button data-act="delete">Delete</button>' +
+        '</span>';
+      li.querySelector('[data-act="insert"]').addEventListener('click', () => {
+        insertCitationRef(id);
+        closeModal($('#citationModal'));
+      });
+      li.querySelector('[data-act="delete"]').addEventListener('click', () => {
+        delete citations[id];
+        persistCites();
+        renderCitList();
+      });
+      ul.appendChild(li);
+    });
+  }
+
+  function insertCitationRef(id) {
+    const html = '<sup class="rwd-cite" data-cite="' + escapeHtml(id) +
+      '" contenteditable="false">[?]</sup>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    refreshCitations();
+    queueAutosave();
+  }
+
+  function refreshCitations() {
+    // Number citations in document order by first occurrence
+    const order = {};
+    let nextNum = 1;
+    editor.querySelectorAll('.rwd-cite').forEach((el) => {
+      const id = el.dataset.cite;
+      if (!id) return;
+      if (!(id in order)) order[id] = nextNum++;
+      el.textContent = '[' + order[id] + ']';
+      const c = citations[id];
+      el.title = c
+        ? (c.author || 'Anon') + ' ' + (c.year || '') + ' — ' + (c.title || '')
+        : '(missing source)';
+    });
+    // Auto-update any inserted bibliography to match the order
+    editor.querySelectorAll('.rwd-bibliography').forEach((bib) => {
+      bib.innerHTML = renderBibliographyHtml(order);
+    });
+    return order;
+  }
+
+  function renderBibliographyHtml(order) {
+    const ids = Object.keys(order).sort((a, b) => order[a] - order[b]);
+    let html = '<h2>Bibliography</h2><ol>';
+    ids.forEach((id) => {
+      const c = citations[id];
+      const author = (c && c.author) || 'Anon';
+      const year = (c && c.year) || 'n.d.';
+      const title = (c && c.title) || 'Untitled';
+      const source = (c && c.source) || '';
+      html += '<li>' + escapeHtml(author) + ' (' + escapeHtml(year) + '). <i>' +
+        escapeHtml(title) + '</i>' + (source ? '. ' + escapeHtml(source) : '') +
+        '.</li>';
+    });
+    html += '</ol>';
+    return html;
+  }
+
+  $('#citationBtn')?.addEventListener('click', () => {
+    saveSelection();
+    renderCitList();
+    openModal($('#citationModal'));
+  });
+
+  $('#addSourceBtn')?.addEventListener('click', () => {
+    const c = {
+      author: $('#citAuthor').value.trim(),
+      year: $('#citYear').value.trim(),
+      title: $('#citTitle').value.trim(),
+      source: $('#citSource').value.trim(),
+    };
+    if (!c.author && !c.title) {
+      toast('Author or title is required', 'error');
+      return;
+    }
+    const id = citationId(c);
+    citations[id] = c;
+    persistCites();
+    $('#citAuthor').value = '';
+    $('#citYear').value = '';
+    $('#citTitle').value = '';
+    $('#citSource').value = '';
+    renderCitList();
+    toast('Source added', 'success');
+  });
+
+  $('#bibliographyBtn')?.addEventListener('click', () => {
+    // Replace any existing bibliography
+    editor.querySelectorAll('.rwd-bibliography').forEach((b) => b.remove());
+    const order = refreshCitations();
+    const html = '<div class="rwd-bibliography">' +
+      renderBibliographyHtml(order) + '</div><p><br/></p>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // Click a citation to view its source
+  editor.addEventListener('click', (e) => {
+    const sup = e.target.closest && e.target.closest('.rwd-cite');
+    if (!sup) return;
+    e.preventDefault();
+    const c = citations[sup.dataset.cite];
+    if (!c) { toast('Source not found in this browser', 'info'); return; }
+    toast(c.author + ' (' + c.year + '). ' + c.title +
+      (c.source ? ' — ' + c.source : ''), 'info', 4000);
+  });
+
+  // Hook citation refresh into the field engine
+  const __origRefreshFields = refreshFields;
+  refreshFields = function (root) {
+    __origRefreshFields(root);
+    refreshCitations();
+  };
+
   // Click a caption to edit its text
   editor.addEventListener('dblclick', (e) => {
     const cap = e.target.closest && e.target.closest('.rwd-caption');

@@ -183,6 +183,8 @@
           <button class="ribbon-btn wide" id="equationBtn" title="Insert equation">∑ Equation</button>
           <button class="ribbon-btn wide" id="captionBtn" title="Insert auto-numbered caption">🏷 Caption</button>
           <button class="ribbon-btn wide" id="crossRefBtn" title="Insert cross-reference">↗ Cross-ref</button>
+          <button class="ribbon-btn wide" id="citationBtn" title="Insert citation">📎 Cite</button>
+          <button class="ribbon-btn wide" id="bibliographyBtn" title="Insert bibliography">📚 Bibliography</button>
         </div>
         <div class="group-label">Layout</div>
       </div>
@@ -562,6 +564,28 @@
         </table>
       </div>
       <footer><button class="btn primary" data-close-modal>Got it</button></footer>
+    </div>
+  </div>
+
+  <!-- Citation modal -->
+  <div class="modal" id="citationModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Citations</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Add a source, then insert a citation at the cursor. Style is APA-lite.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label>Author <input id="citAuthor" type="text" placeholder="Smith, J." /></label>
+          <label>Year <input id="citYear" type="text" placeholder="2024" /></label>
+          <label style="grid-column:1/-1">Title <input id="citTitle" type="text" placeholder="The work itself" /></label>
+          <label style="grid-column:1/-1">Source <input id="citSource" type="text" placeholder="Journal / Publisher / URL" /></label>
+        </div>
+        <button class="btn" id="addSourceBtn">Add this source</button>
+        <hr/>
+        <ul id="citList" class="snippet-list"></ul>
+      </div>
+      <footer><button class="btn primary" data-close-modal>Done</button></footer>
     </div>
   </div>
 

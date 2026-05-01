@@ -473,6 +473,26 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Citations */
+.editor .rwd-cite {
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 0.9em;
+  vertical-align: super;
+}
+.editor .rwd-bibliography {
+  border-top: 1px solid var(--ribbon-border);
+  margin-top: 18px;
+  padding-top: 8px;
+  font-size: 0.95em;
+}
+.editor .rwd-bibliography h2 {
+  font-size: 14pt;
+  margin: 8px 0;
+}
+.editor .rwd-bibliography ol { margin: 0; padding-left: 22px; }
+.editor .rwd-bibliography li { margin: 4px 0; }
+
 /* Captions */
 .editor .rwd-caption {
   display: block;
