@@ -2930,6 +2930,170 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section M — Cloud & sharing (#96–#100)
+  // ============================================================
+
+  // #96 Read-only share link  / #97 Comment-only share
+  function buildShareLinkMode(mode) {
+    const data = { v: 2, t: docTitle.value, h: editor.innerHTML, m: mode };
+    const json = JSON.stringify(data);
+    let b64;
+    try { b64 = btoa(unescape(encodeURIComponent(json))); }
+    catch { b64 = btoa(json); }
+    return location.origin + location.pathname + '#sm=' + mode + '&d=' + b64;
+  }
+  async function shareReadOnly() {
+    const url = buildShareLinkMode('ro');
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Read-only share link copied to clipboard', 'success');
+    } catch {
+      prompt('Read-only share link:', url);
+    }
+  }
+  async function shareCommentOnly() {
+    const url = buildShareLinkMode('co');
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Comment-only share link copied to clipboard', 'success');
+    } catch {
+      prompt('Comment-only share link:', url);
+    }
+  }
+  // On load, detect share mode and apply restrictions
+  (function applyShareMode() {
+    const m = (location.hash || '').match(/sm=([a-z]+)&d=(.*)/);
+    if (!m) return;
+    setTimeout(() => {
+      try {
+        const json = decodeURIComponent(escape(atob(m[2])));
+        const data = JSON.parse(json);
+        const mode = m[1];
+        if (mode === 'ro' || mode === 'co') {
+          editor.innerHTML = sanitizeImported(data.h || '');
+          if (data.t) docTitle.value = data.t;
+          if (mode === 'ro') {
+            // Read-only mode
+            editor.contentEditable = 'false';
+            if (docHeader) docHeader.contentEditable = 'false';
+            if (docFooter) docFooter.contentEditable = 'false';
+            document.body.classList.add('marked-final');
+            $('#finalBanner').hidden = false;
+            $('#finalBanner').innerHTML = '🔒 You opened a <b>read-only share</b> link. Editing is disabled.';
+          } else {
+            // Comment-only: keep doc read-only but allow commenting
+            editor.contentEditable = 'false';
+            const banner = document.createElement('div');
+            banner.className = 'final-banner';
+            banner.innerHTML = '💬 You opened a <b>comment-only share</b> link. You can add comments but not edit the body.';
+            document.body.insertBefore(banner, document.body.firstChild);
+          }
+          history.replaceState(null, '', location.pathname);
+          refreshFields();
+        }
+      } catch {}
+    }, 100);
+  })();
+
+  // #98 WebDAV / Nextcloud sync
+  function openWebDAV() {
+    $('#wdUrl').value = localStorage.getItem('rodmanword:wdUrl') || '';
+    $('#wdUser').value = localStorage.getItem('rodmanword:wdUser') || '';
+    $('#wdFile').value = localStorage.getItem('rodmanword:wdFile') ||
+      sanitizeFileName(docTitle.value) + '.rwd';
+    $('#wdStatus').textContent = '';
+    openModal($('#webdavModal'));
+  }
+  $('#wdSaveBtn')?.addEventListener('click', async () => {
+    const url = $('#wdUrl').value.trim();
+    const user = $('#wdUser').value.trim();
+    const pass = $('#wdPass').value;
+    const fn = $('#wdFile').value.trim();
+    if (!url || !user || !pass || !fn) { toast('Fill every field', 'error'); return; }
+    localStorage.setItem('rodmanword:wdUrl', url);
+    localStorage.setItem('rodmanword:wdUser', user);
+    localStorage.setItem('rodmanword:wdFile', fn);
+    $('#wdStatus').textContent = 'Uploading…';
+    try {
+      const res = await fetch(url.replace(/\/?$/, '/') + encodeURIComponent(fn), {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'Basic ' + btoa(user + ':' + pass),
+          'Content-Type': 'application/json',
+        },
+        body: buildRwdJson(),
+      });
+      if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+      $('#wdStatus').textContent = '✓ Uploaded at ' + new Date().toLocaleTimeString();
+      toast('Saved to WebDAV', 'success');
+    } catch (err) {
+      $('#wdStatus').textContent = '✗ ' + err.message;
+      toast('WebDAV upload failed: ' + err.message, 'error');
+    }
+  });
+  $('#wdLoadBtn')?.addEventListener('click', async () => {
+    const url = $('#wdUrl').value.trim();
+    const user = $('#wdUser').value.trim();
+    const pass = $('#wdPass').value;
+    const fn = $('#wdFile').value.trim();
+    if (!url || !user || !pass || !fn) { toast('Fill every field', 'error'); return; }
+    $('#wdStatus').textContent = 'Downloading…';
+    try {
+      const res = await fetch(url.replace(/\/?$/, '/') + encodeURIComponent(fn), {
+        method: 'GET',
+        headers: { 'Authorization': 'Basic ' + btoa(user + ':' + pass) },
+      });
+      if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+      const data = await res.json();
+      applyRwdJson(data);
+      $('#wdStatus').textContent = '✓ Loaded ' + fn;
+      toast('Loaded from WebDAV', 'success');
+    } catch (err) {
+      $('#wdStatus').textContent = '✗ ' + err.message;
+      toast('WebDAV download failed: ' + err.message, 'error');
+    }
+  });
+
+  // #99 Email this doc — mailto: with subject + body chunked
+  function emailDoc() {
+    const subject = encodeURIComponent(docTitle.value || 'Document');
+    let body = (editor.innerText || '').slice(0, 1900); // mailto length safe
+    // RFC 2368 — newlines as %0D%0A
+    const url = 'mailto:?subject=' + subject + '&body=' +
+      encodeURIComponent(body) + (editor.innerText.length > 1900 ? '%0A%0A(Truncated.)' : '');
+    window.location.href = url;
+  }
+
+  // #100 Send to Slack / Teams — copy Markdown to clipboard
+  async function copySlackMarkdown() {
+    const md = (window.RodmanInterop && window.RodmanInterop.mdExport)
+      ? window.RodmanInterop.mdExport(editor.innerHTML, {})
+      : (window.__rwdHtmlToMarkdown ? window.__rwdHtmlToMarkdown(editor.innerHTML) : editor.innerText);
+    // Slack flavour: convert # headings to bold lines (Slack doesn't render H1)
+    const slack = md
+      .replace(/^# (.*)$/gm, '*$1*')
+      .replace(/^## (.*)$/gm, '*$1*')
+      .replace(/^### (.*)$/gm, '_$1_');
+    try {
+      await navigator.clipboard.writeText(slack);
+      toast('Slack-flavoured Markdown copied to clipboard', 'success');
+    } catch {
+      prompt('Slack-flavoured Markdown:', slack);
+    }
+  }
+
+  setBackstageView = (function (orig) {
+    return function (action) {
+      if (action === 'share-readonly') { closeBackstage(); shareReadOnly(); return; }
+      if (action === 'share-comments') { closeBackstage(); shareCommentOnly(); return; }
+      if (action === 'webdav-sync') { closeBackstage(); openWebDAV(); return; }
+      if (action === 'email-doc') { closeBackstage(); emailDoc(); return; }
+      if (action === 'send-slack') { closeBackstage(); copySlackMarkdown(); return; }
+      return orig(action);
+    };
+  })(setBackstageView);
+
+  // ============================================================
   // FEATURE: Section L — Export / interop (#86–#95)
   // ============================================================
   function doExport(name, data, mime) {

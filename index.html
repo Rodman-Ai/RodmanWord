@@ -583,6 +583,11 @@
         <li><button data-action="save-fs">Save to file…</button></li>
         <li><button data-action="open-fs">Open from file…</button></li>
         <li><button data-action="cloud-sync">Cloud sync (Gist)…</button></li>
+        <li><button data-action="share-readonly">Share read-only…</button></li>
+        <li><button data-action="share-comments">Share comment-only…</button></li>
+        <li><button data-action="webdav-sync">WebDAV / Nextcloud…</button></li>
+        <li><button data-action="email-doc">Email this doc…</button></li>
+        <li><button data-action="send-slack">Copy Slack-Markdown</button></li>
         <li><button data-action="collab">Collaborate (P2P)…</button></li>
         <li><button data-action="export-docx">Export Word (.docx)</button></li>
         <li><button data-action="export-pdf">Export PDF</button></li>
@@ -916,6 +921,28 @@
         <div id="coverPageGrid" class="template-grid"></div>
       </div>
       <footer><button class="btn" data-close-modal>Close</button></footer>
+    </div>
+  </div>
+
+  <!-- WebDAV sync modal -->
+  <div class="modal" id="webdavModal" hidden>
+    <div class="modal-card">
+      <header><h3>WebDAV / Nextcloud sync</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Save / load the document directly via WebDAV (Nextcloud, OwnCloud, Apache, etc.). Credentials live only in this browser.</p>
+        <label>Server URL <input id="wdUrl" type="text" placeholder="https://cloud.example.com/remote.php/dav/files/USER/" /></label>
+        <label>Username <input id="wdUser" type="text" /></label>
+        <label>Password / token <input id="wdPass" type="password" /></label>
+        <label>Filename <input id="wdFile" type="text" placeholder="document.rwd" /></label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn" id="wdSaveBtn">Upload</button>
+          <button class="btn" id="wdLoadBtn">Download</button>
+        </div>
+        <p id="wdStatus" class="muted"></p>
+      </div>
+      <footer><button class="btn primary" data-close-modal>Close</button></footer>
     </div>
   </div>
 
