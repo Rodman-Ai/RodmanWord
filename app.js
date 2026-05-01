@@ -2930,6 +2930,171 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section C — Tables advanced (#21–#27)
+  // ============================================================
+  // Helper: column index <-> letter
+  function colLetter(n) {
+    let s = '';
+    n++;
+    while (n > 0) { n--; s = String.fromCharCode(65 + n % 26) + s; n = Math.floor(n / 26); }
+    return s;
+  }
+  function cellRef(td) {
+    const tr = td.parentElement;
+    const tbody = tr.parentElement.tagName === 'TBODY' ? tr.parentElement : tr;
+    const rows = Array.from(tbody.children);
+    const r = rows.indexOf(tr);
+    const c = Array.from(tr.children).indexOf(td);
+    return { r, c, ref: colLetter(c) + (r + 1) };
+  }
+  function findCellByRef(table, ref) {
+    const m = ref.match(/^([A-Z]+)(\d+)$/);
+    if (!m) return null;
+    let c = 0;
+    for (const ch of m[1]) c = c * 26 + (ch.charCodeAt(0) - 64);
+    c -= 1;
+    const r = parseInt(m[2], 10) - 1;
+    const tbody = table.tBodies[0] || table;
+    const row = tbody.rows[r];
+    return row && row.children[c];
+  }
+  function cellValue(td) {
+    if (!td) return 0;
+    const v = parseFloat((td.textContent || '').replace(/[^0-9.\-]/g, ''));
+    return isNaN(v) ? 0 : v;
+  }
+
+  // #21 Cell formulas (=SUM, =AVG, =COUNT, =MAX, =MIN, =A1+B1)
+  function evalFormula(td, expr, table) {
+    const fn = (op) => (range) => {
+      const m = range.match(/([A-Z]+\d+)\s*:\s*([A-Z]+\d+)/);
+      if (!m) return 0;
+      const [a, b] = [m[1], m[2]];
+      const ca = findCellByRef(table, a);
+      const cb = findCellByRef(table, b);
+      if (!ca || !cb) return 0;
+      const ra = cellRef(ca), rb = cellRef(cb);
+      const r1 = Math.min(ra.r, rb.r), r2 = Math.max(ra.r, rb.r);
+      const c1 = Math.min(ra.c, rb.c), c2 = Math.max(ra.c, rb.c);
+      const vals = [];
+      const tbody = table.tBodies[0] || table;
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) {
+          const cell = tbody.rows[r] && tbody.rows[r].children[c];
+          if (cell && cell !== td) vals.push(cellValue(cell));
+        }
+      }
+      if (op === 'SUM') return vals.reduce((a, v) => a + v, 0);
+      if (op === 'AVG') return vals.length ? vals.reduce((a, v) => a + v, 0) / vals.length : 0;
+      if (op === 'COUNT') return vals.length;
+      if (op === 'MAX') return Math.max.apply(null, vals.length ? vals : [0]);
+      if (op === 'MIN') return Math.min.apply(null, vals.length ? vals : [0]);
+      return 0;
+    };
+    let s = expr.replace(/^=\s*/, '');
+    s = s.replace(/SUM\(([^)]+)\)/gi, (_, r) => fn('SUM')(r));
+    s = s.replace(/AVG\(([^)]+)\)/gi, (_, r) => fn('AVG')(r));
+    s = s.replace(/COUNT\(([^)]+)\)/gi, (_, r) => fn('COUNT')(r));
+    s = s.replace(/MAX\(([^)]+)\)/gi, (_, r) => fn('MAX')(r));
+    s = s.replace(/MIN\(([^)]+)\)/gi, (_, r) => fn('MIN')(r));
+    s = s.replace(/[A-Z]+\d+/g, (ref) => cellValue(findCellByRef(table, ref)));
+    if (!/^[\d+\-*/(). ]+$/.test(s)) return null;
+    try { return Function('"use strict";return (' + s + ');')(); } catch { return null; }
+  }
+
+  function recomputeFormulas() {
+    editor.querySelectorAll('table').forEach((table) => {
+      table.querySelectorAll('td[data-formula]').forEach((td) => {
+        const v = evalFormula(td, td.dataset.formula, table);
+        if (v == null) return;
+        const fmt = td.dataset.numfmt;
+        td.textContent = formatNumber(v, fmt);
+      });
+    });
+  }
+  function formatNumber(v, fmt) {
+    if (!fmt) return String(Math.round(v * 1000) / 1000);
+    if (fmt === 'currency') return '$' + v.toFixed(2);
+    if (fmt === 'percent') return (v * 100).toFixed(1) + '%';
+    if (fmt === 'integer') return String(Math.round(v));
+    if (fmt === 'date') return new Date(v).toLocaleDateString();
+    return String(v);
+  }
+  // Recompute on every editor input (debounced via field engine)
+  editor.addEventListener('input', () => {
+    clearTimeout(window.__rwdFx);
+    window.__rwdFx = setTimeout(recomputeFormulas, 250);
+  });
+  setTimeout(recomputeFormulas, 100);
+
+  // Wire the new table-bar buttons
+  if (typeof tableBar !== 'undefined' && tableBar) {
+    tableBar.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const a = btn.dataset.tact;
+      const cell = activeCell();
+      if (!cell) return;
+      const table = cell.closest('table');
+      if (a === 'formula') {
+        const cur = cell.dataset.formula || '';
+        const v = prompt('Cell formula (e.g. =SUM(A1:A4) or =B1+C1):', cur);
+        if (v == null) return;
+        if (v.trim()) {
+          cell.dataset.formula = v.trim();
+          recomputeFormulas();
+        } else {
+          delete cell.dataset.formula;
+        }
+        queueAutosave();
+      } else if (a === 'numfmt') {
+        const v = prompt('Format: currency / percent / integer / date / (blank to clear)', cell.dataset.numfmt || '');
+        if (v == null) return;
+        if (v) cell.dataset.numfmt = v.trim();
+        else delete cell.dataset.numfmt;
+        recomputeFormulas();
+        queueAutosave();
+      } else if (a === 'cell-color') {
+        const v = prompt('Cell colour (CSS color, blank to clear):', cell.style.background || '');
+        if (v == null) return;
+        cell.style.background = v;
+        queueAutosave();
+      } else if (a === 'distribute') {
+        const cols = Math.max(...Array.from(table.rows).map((r) => r.children.length));
+        Array.from(table.rows).forEach((r) => {
+          Array.from(r.children).forEach((c) => { c.style.width = (100 / cols).toFixed(2) + '%'; });
+        });
+        queueAutosave();
+      } else if (a === 'header-repeat') {
+        // Wrap first row in <thead>
+        if (!table.tHead && table.rows.length) {
+          const head = table.createTHead();
+          head.appendChild(table.rows[0]);
+        }
+        table.classList.toggle('tbl-repeat-header');
+        queueAutosave();
+      }
+    });
+  }
+
+  // #27 Caption auto-attach: when inserting a table, prompt for caption
+  // Patch existing insertTableConfirm flow if present
+  if ($('#insertTableConfirm')) {
+    $('#insertTableConfirm').addEventListener('click', () => {
+      // The original handler runs first; afterwards offer a caption.
+      setTimeout(() => {
+        const v = prompt('Optional caption (Cancel to skip):', '');
+        if (!v) return;
+        const html = '<p class="rwd-caption" data-seq="table" data-label="Table" data-text="' +
+          escapeHtml(v) + '"></p>';
+        document.execCommand('insertHTML', false, html);
+        if (typeof refreshFields === 'function') refreshFields();
+        queueAutosave();
+      }, 50);
+    });
+  }
+
+  // ============================================================
   // FEATURE: Section B — Document model & styles depth (#11–#20)
   // ============================================================
   const STORE_THEME = 'rodmanword:theme';

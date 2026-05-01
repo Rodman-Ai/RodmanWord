@@ -499,6 +499,16 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Table cell extras */
+.editor td[data-formula] { background: rgba(43,87,154,0.06); }
+.editor td[data-formula]::after {
+  content: " ƒ";
+  color: var(--primary);
+  font-size: 0.8em;
+  vertical-align: super;
+}
+.editor table.tbl-repeat-header thead { display: table-header-group; }
+
 /* Document themes — applied via root variables */
 :root {
   --theme-body-font: Calibri, Arial, sans-serif;
