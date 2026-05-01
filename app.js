@@ -2930,6 +2930,261 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section G — References & academic (#52–#58)
+  // ============================================================
+  const STORE_CITESTYLE = 'rodmanword:citeStyle';
+  let citeStyle = localStorage.getItem(STORE_CITESTYLE) || 'apa';
+
+  // #52 DOI lookup → auto-citation
+  $('#doiBtn')?.addEventListener('click', async () => {
+    const doi = prompt('Enter DOI (e.g. 10.1038/s41586-021-03819-2):', '');
+    if (!doi) return;
+    try {
+      const res = await fetch('https://doi.org/' + encodeURIComponent(doi.trim()), {
+        headers: { 'Accept': 'application/vnd.citationstyles.csl+json' },
+      });
+      if (!res.ok) throw new Error('Lookup failed: ' + res.status);
+      const j = await res.json();
+      const author = (j.author || []).map((a) =>
+        (a.family || '') + (a.given ? ', ' + a.given.charAt(0) + '.' : '')).join('; ') || 'Anon';
+      const year = j.issued && j.issued['date-parts'] && j.issued['date-parts'][0]
+        ? j.issued['date-parts'][0][0] : '';
+      const title = j.title || '';
+      const source = (j['container-title'] || j.publisher || '') +
+        (j.volume ? ', ' + j.volume : '') +
+        (j.issue ? '(' + j.issue + ')' : '') +
+        (j.page ? ', ' + j.page : '') + ' (DOI: ' + doi + ')';
+      const c = { author, year, title, source };
+      const id = citationId(c);
+      citations[id] = c;
+      persistCites();
+      insertCitationRef(id);
+      toast('Cited: ' + title.slice(0, 40), 'success');
+    } catch (err) {
+      toast('DOI lookup failed: ' + err.message, 'error');
+    }
+  });
+
+  // #53 ISBN lookup → auto-citation (Open Library)
+  $('#isbnBtn')?.addEventListener('click', async () => {
+    const isbn = prompt('Enter ISBN-10 or ISBN-13:', '');
+    if (!isbn) return;
+    try {
+      const res = await fetch('https://openlibrary.org/api/books?bibkeys=ISBN:' +
+        encodeURIComponent(isbn.replace(/[^0-9X]/gi, '')) +
+        '&format=json&jscmd=data');
+      if (!res.ok) throw new Error('Lookup failed');
+      const j = await res.json();
+      const k = Object.keys(j)[0];
+      if (!k) throw new Error('Not found');
+      const b = j[k];
+      const author = (b.authors || []).map((a) => a.name).join('; ') || 'Anon';
+      const year = (b.publish_date || '').match(/\d{4}/)?.[0] || '';
+      const title = b.title || '';
+      const source = (b.publishers || []).map((p) => p.name).join(', ') +
+        ' (ISBN: ' + isbn + ')';
+      const c = { author, year, title, source };
+      const id = citationId(c);
+      citations[id] = c;
+      persistCites();
+      insertCitationRef(id);
+      toast('Cited: ' + title.slice(0, 40), 'success');
+    } catch (err) {
+      toast('ISBN lookup failed: ' + err.message, 'error');
+    }
+  });
+
+  // #54 BibTeX import — paste a .bib chunk; parse minimal entries
+  $('#bibtexBtn')?.addEventListener('click', () => {
+    const text = prompt('Paste BibTeX:', '');
+    if (!text) return;
+    const re = /@(\w+)\s*\{\s*([^,]+),([^@]*)/g;
+    let m, count = 0;
+    while ((m = re.exec(text)) !== null) {
+      const fields = {};
+      const body = m[3];
+      const fre = /(\w+)\s*=\s*[{"]?([^"}]*)[}"]?\s*,?/g;
+      let f;
+      while ((f = fre.exec(body)) !== null) {
+        fields[f[1].toLowerCase()] = f[2].trim();
+      }
+      const c = {
+        author: fields.author || 'Anon',
+        year: fields.year || '',
+        title: fields.title || '',
+        source: [fields.journal, fields.publisher, fields.booktitle].filter(Boolean).join(', '),
+      };
+      const id = m[2].trim() || citationId(c);
+      citations[id] = c;
+      count++;
+    }
+    persistCites();
+    toast('Imported ' + count + ' BibTeX entries', 'success');
+  });
+
+  // #55 Citation style switcher
+  $('#citationStyleSelect')?.addEventListener('change', (e) => {
+    citeStyle = e.target.value;
+    localStorage.setItem(STORE_CITESTYLE, citeStyle);
+    refreshCitations();
+    // Rewrite any inserted bibliographies to follow the new style
+    editor.querySelectorAll('.rwd-bibliography').forEach((bib) => {
+      const order = refreshCitations();
+      bib.innerHTML = renderBibliographyHtmlStyled(order, citeStyle);
+    });
+    queueAutosave();
+  });
+  function renderBibliographyHtmlStyled(order, style) {
+    const ids = Object.keys(order).sort((a, b) => order[a] - order[b]);
+    let html = '<h2>Bibliography</h2><ol>';
+    ids.forEach((id) => {
+      const c = citations[id];
+      const a = (c && c.author) || 'Anon';
+      const y = (c && c.year) || 'n.d.';
+      const t = (c && c.title) || 'Untitled';
+      const s = (c && c.source) || '';
+      let entry = '';
+      switch (style) {
+        case 'mla':
+          entry = a + '. <i>' + t + '</i>. ' + s + ', ' + y + '.';
+          break;
+        case 'chicago':
+          entry = a + '. ' + y + '. <i>' + t + '</i>. ' + s + '.';
+          break;
+        case 'ieee':
+          entry = '[' + order[id] + '] ' + a + ', "' + t + '," ' + s + ', ' + y + '.';
+          break;
+        case 'harvard':
+          entry = a + ' (' + y + ') <i>' + t + '</i>, ' + s + '.';
+          break;
+        case 'vancouver':
+          entry = order[id] + '. ' + a + '. ' + t + '. ' + s + '. ' + y + '.';
+          break;
+        default: // apa
+          entry = a + ' (' + y + '). <i>' + t + '</i>. ' + s + '.';
+      }
+      html += '<li>' + entry + '</li>';
+    });
+    return html + '</ol>';
+  }
+  // Also use the styled renderer when inserting a new bibliography
+  if ($('#bibliographyBtn')) {
+    $('#bibliographyBtn').addEventListener('click', () => {
+      // Allow the original handler to run, then post-process the
+      // freshly inserted bibliography to match the chosen style.
+      setTimeout(() => {
+        const bib = editor.querySelector('.rwd-bibliography');
+        if (bib) {
+          const order = refreshCitations();
+          bib.innerHTML = renderBibliographyHtmlStyled(order, citeStyle);
+        }
+      }, 50);
+    });
+  }
+
+  // #56 Index (back-of-book)
+  $('#indexMarkBtn')?.addEventListener('click', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) { toast('Select a term first', 'info'); return; }
+    const term = prompt('Index term (defaults to selected text):', sel.toString().trim());
+    if (!term) return;
+    const range = sel.getRangeAt(0);
+    const span = document.createElement('span');
+    span.className = 'rwd-index';
+    span.dataset.term = term;
+    try {
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+    } catch {}
+    queueAutosave();
+  });
+  $('#insertIndexBtn')?.addEventListener('click', () => {
+    // Collect all terms; build alphabetical index
+    const map = {}; // term -> Set of pageNumber-like markers
+    editor.querySelectorAll('.rwd-index').forEach((s) => {
+      const t = s.dataset.term || s.textContent;
+      if (!map[t]) map[t] = new Set();
+      map[t].add(pageNumberOf(s));
+    });
+    const terms = Object.keys(map).sort((a, b) => a.localeCompare(b));
+    if (!terms.length) { toast('Mark some terms first with ≡ Index entry', 'info'); return; }
+    let html = '<div class="rwd-index-block"><h2>Index</h2><ul>';
+    terms.forEach((t) => {
+      const pages = Array.from(map[t]).sort((a, b) => a - b).join(', ');
+      html += '<li><span class="term">' + escapeHtml(t) + '</span> — ' + pages + '</li>';
+    });
+    html += '</ul></div>';
+    // Replace any existing index
+    const old = editor.querySelector('.rwd-index-block');
+    if (old) old.remove();
+    editor.insertAdjacentHTML('beforeend', html);
+    queueAutosave();
+  });
+
+  // #57 Lists of figures / tables / equations
+  $('#listOfFiguresBtn')?.addEventListener('click', () => {
+    const seqs = ['figure', 'table', 'equation'];
+    let combinedHtml = '';
+    seqs.forEach((seq) => {
+      const items = editor.querySelectorAll('.rwd-caption[data-seq="' + seq + '"]');
+      if (!items.length) return;
+      const label = seq.charAt(0).toUpperCase() + seq.slice(1) + 's';
+      combinedHtml += '<div class="rwd-list-of"><h3>List of ' + label + '</h3><ol>';
+      items.forEach((c) => {
+        const num = c.dataset.num || '';
+        const text = c.dataset.text || '';
+        combinedHtml += '<li>' + escapeHtml((c.dataset.label || seq) + ' ' + num + '. ' + text) + '</li>';
+      });
+      combinedHtml += '</ol></div>';
+    });
+    if (!combinedHtml) { toast('No captions found', 'info'); return; }
+    restoreSelection();
+    document.execCommand('insertHTML', false, combinedHtml + '<p><br/></p>');
+    queueAutosave();
+  });
+
+  // #58 Cross-reference autocomplete — wrap the existing crossRefBtn
+  // to show an inline picker instead of the prompt list. Reuse the
+  // command-palette CSS for the dropdown.
+  if ($('#crossRefBtn')) {
+    const origCrossRef = $('#crossRefBtn').onclick;
+    $('#crossRefBtn').onclick = null;
+    $('#crossRefBtn').addEventListener('click', () => {
+      const targets = collectXrefTargets();
+      const ids = Object.keys(targets);
+      if (!ids.length) { toast('Add a heading, caption, or bookmark first', 'info'); return; }
+      // Build a temporary inline picker
+      const pop = document.createElement('div');
+      pop.className = 'context-menu';
+      pop.style.cssText = 'left:50%;top:140px;transform:translateX(-50%);min-width:340px;max-height:60vh;overflow:auto';
+      pop.innerHTML = '<button data-act="hdr" disabled><i>Click a target</i></button>';
+      ids.forEach((id) => {
+        const t = targets[id];
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.innerHTML = (t.number ? '<b>' + escapeHtml(t.number) + '</b> ' : '') +
+          escapeHtml((t.text || '').slice(0, 60));
+        b.addEventListener('click', () => {
+          pop.remove();
+          const html = '<a class="rwd-xref" href="#' + escapeHtml(id) +
+            '" data-target="' + escapeHtml(id) + '" data-kind="auto" contenteditable="false">…</a>';
+          restoreSelection();
+          document.execCommand('insertHTML', false, html);
+          refreshFields();
+          queueAutosave();
+        });
+        pop.appendChild(b);
+      });
+      document.body.appendChild(pop);
+      setTimeout(() => {
+        document.addEventListener('mousedown', (ev) => {
+          if (!pop.contains(ev.target)) pop.remove();
+        }, { once: true });
+      }, 0);
+    });
+  }
+
+  // ============================================================
   // FEATURE: Section F — Templates, themes, branding (#44–#51)
   // ============================================================
   const STORE_BRAND = 'rodmanword:brand';

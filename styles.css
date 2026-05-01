@@ -499,6 +499,29 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Index entries (back-of-book) */
+.editor .rwd-index {
+  text-decoration: underline dotted var(--theme-accent-3, #ff8f00);
+  cursor: help;
+}
+.editor .rwd-index-block {
+  border-top: 1px solid var(--ribbon-border);
+  margin-top: 24px;
+  padding-top: 12px;
+  font-size: 0.95em;
+  column-count: 2;
+}
+.editor .rwd-index-block h2 { font-size: 14pt; margin: 0 0 8px; column-span: all; }
+.editor .rwd-index-block ul { list-style: none; padding: 0; }
+.editor .rwd-index-block li { margin: 2px 0; }
+.editor .rwd-index-block .term { font-weight: 600; }
+.editor .rwd-list-of {
+  border-top: 1px solid var(--ribbon-border);
+  margin-top: 18px;
+  padding-top: 8px;
+}
+.editor .rwd-list-of h3 { color: var(--theme-accent-1, var(--primary)); }
+
 /* Brand kit + cover pages */
 .editor .rwd-letterhead {
   display: flex;
