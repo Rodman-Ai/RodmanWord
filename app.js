@@ -2694,6 +2694,44 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Drawing shapes + text boxes (Tier 2, gap #17)
+  // ============================================================
+  function insertShape(svg) {
+    const html = '<svg class="rwd-shape" xmlns="http://www.w3.org/2000/svg" ' +
+      svg + '</svg>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  }
+
+  $('#shapeRectBtn')?.addEventListener('click', () => {
+    insertShape(
+      'width="120" height="80" viewBox="0 0 120 80">' +
+      '<rect x="2" y="2" width="116" height="76" fill="rgba(43,87,154,0.1)" stroke="#2b579a" stroke-width="2"/>'
+    );
+  });
+  $('#shapeEllipseBtn')?.addEventListener('click', () => {
+    insertShape(
+      'width="120" height="80" viewBox="0 0 120 80">' +
+      '<ellipse cx="60" cy="40" rx="56" ry="36" fill="rgba(210,63,49,0.1)" stroke="#d23f31" stroke-width="2"/>'
+    );
+  });
+  $('#shapeArrowBtn')?.addEventListener('click', () => {
+    insertShape(
+      'width="140" height="40" viewBox="0 0 140 40">' +
+      '<defs><marker id="rwd-arr" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">' +
+      '<polygon points="0 0, 10 3, 0 6" fill="#2b579a"/></marker></defs>' +
+      '<line x1="6" y1="20" x2="124" y2="20" stroke="#2b579a" stroke-width="2" marker-end="url(#rwd-arr)"/>'
+    );
+  });
+  $('#textBoxBtn')?.addEventListener('click', () => {
+    const html = '<span class="rwd-textbox" contenteditable="true">Type here…</span>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // ============================================================
   // FEATURE: Form fields + document protection (Tier 2, gap #25)
   // ============================================================
   $('#formTextBtn')?.addEventListener('click', () => {

@@ -499,6 +499,24 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Drawing shapes */
+.editor .rwd-shape {
+  display: inline-block;
+  margin: 4px;
+  vertical-align: middle;
+}
+.editor .rwd-textbox {
+  display: inline-block;
+  border: 1px solid var(--primary);
+  background: var(--page-bg);
+  padding: 6px 10px;
+  margin: 4px;
+  min-width: 100px;
+  outline: none;
+  border-radius: 2px;
+  vertical-align: top;
+}
+
 /* Form fields */
 .editor .rwd-form-text {
   display: inline-block;
