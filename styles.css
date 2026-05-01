@@ -499,6 +499,16 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Custom list bullets */
+.editor ul[data-bullet] { list-style: none; padding-left: 1.6em; }
+.editor ul[data-bullet] > li { position: relative; }
+.editor ul[data-bullet] > li::before {
+  content: attr(data-bullet);
+  position: absolute;
+  left: -1.4em;
+  color: var(--theme-accent-1, var(--primary));
+}
+
 /* Table cell extras */
 .editor td[data-formula] { background: rgba(43,87,154,0.06); }
 .editor td[data-formula]::after {

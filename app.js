@@ -2930,6 +2930,148 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section D — Lists & outlining (#28–#33)
+  // ============================================================
+
+  // #28 Custom bullet characters --------------------------
+  $('#bulletStyle')?.addEventListener('change', (e) => {
+    let v = e.target.value;
+    e.target.value = '';
+    if (!v) return;
+    if (v === 'custom') {
+      v = prompt('Bullet character or short text:', '➤') || '';
+      if (!v) return;
+    }
+    const sel = window.getSelection();
+    let n = sel && sel.anchorNode;
+    if (n && n.nodeType !== 1) n = n.parentElement;
+    const ul = n && n.closest && n.closest('ul');
+    if (!ul) {
+      // Wrap selection or paragraph in a UL with the chosen bullet
+      document.execCommand('insertUnorderedList');
+    }
+    const ul2 = (n && n.closest && n.closest('ul')) ||
+      editor.querySelector('ul:has(> li)');
+    if (ul2) {
+      // #29 Image bullets — if the user types an http(s) URL ending in
+      // an image extension, treat it as an image bullet:
+      if (/^https?:\/\/.+\.(png|jpe?g|gif|svg|webp)/i.test(v)) {
+        ul2.dataset.bullet = '';
+        ul2.style.listStyleImage = 'url(' + v + ')';
+      } else {
+        ul2.dataset.bullet = v;
+        ul2.style.listStyleImage = '';
+      }
+      queueAutosave();
+    }
+  });
+
+  // #30 List style gallery — saved combos in localStorage as a tiny
+  // bonus (reuses customStyles UI naming convention).
+  const STORE_LISTSTYLES = 'rodmanword:listStyles';
+  let listStyles = {};
+  try { listStyles = JSON.parse(localStorage.getItem(STORE_LISTSTYLES) || '{}'); } catch {}
+
+  // #31 Drag a heading + section in the navigation pane to reorder it.
+  function makeOutlineDraggable() {
+    const list = $('#outlineList');
+    if (!list) return;
+    list.querySelectorAll('li').forEach((li) => {
+      li.draggable = true;
+      li.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', li.textContent);
+        li.classList.add('dragging');
+      });
+      li.addEventListener('dragend', () => li.classList.remove('dragging'));
+      li.addEventListener('dragover', (e) => e.preventDefault());
+      li.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const txt = e.dataTransfer.getData('text/plain');
+        const fromHeading = Array.from(editor.querySelectorAll('h1,h2,h3,h4'))
+          .find((h) => h.textContent.trim() === txt.trim());
+        const toHeading = Array.from(editor.querySelectorAll('h1,h2,h3,h4'))
+          .find((h) => h.textContent.trim() === li.textContent.trim());
+        if (!fromHeading || !toHeading || fromHeading === toHeading) return;
+        moveSection(fromHeading, toHeading);
+      });
+    });
+  }
+  function moveSection(fromHeading, beforeHeading) {
+    // Collect everything from fromHeading until the next heading of
+    // equal-or-higher level, then insert before beforeHeading.
+    const lvl = parseInt(fromHeading.tagName.charAt(1), 10);
+    const block = [fromHeading];
+    let n = fromHeading.nextElementSibling;
+    while (n) {
+      if (/^H[1-6]$/.test(n.tagName) &&
+          parseInt(n.tagName.charAt(1), 10) <= lvl) break;
+      block.push(n);
+      n = n.nextElementSibling;
+    }
+    block.forEach((el) => beforeHeading.parentNode.insertBefore(el, beforeHeading));
+    queueAutosave();
+    refreshFields();
+    if (typeof rebuildOutline === 'function') rebuildOutline();
+  }
+  // Hook into the existing outline pane refresh
+  if (typeof rebuildOutline === 'function') {
+    const __origRebuild = rebuildOutline;
+    rebuildOutline = function () {
+      __origRebuild();
+      makeOutlineDraggable();
+    };
+  }
+
+  // #32 Collapse all to level N -----------------------------
+  $('#collapseToLevelBtn')?.addEventListener('click', () => {
+    const v = prompt('Collapse all headings deeper than level N:\n1, 2, 3, 4 (Cancel to expand all)', '2');
+    if (v == null) {
+      // expand all
+      editor.querySelectorAll('.rwd-folded').forEach((el) => el.classList.remove('rwd-folded'));
+      editor.querySelectorAll('.rwd-collapse').forEach((b) => { b.dataset.folded = '0'; b.textContent = '▾'; });
+      return;
+    }
+    const N = parseInt(v, 10);
+    if (isNaN(N) || N < 1 || N > 6) return;
+    // Walk and fold any heading with level > N
+    editor.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach((h) => {
+      const lvl = parseInt(h.tagName.charAt(1), 10);
+      const btn = h.querySelector('.rwd-collapse');
+      if (!btn) return;
+      const shouldFold = lvl > N;
+      const isFolded = btn.dataset.folded === '1';
+      if (shouldFold && !isFolded) toggleHeadingFold(h, btn);
+      else if (!shouldFold && isFolded) toggleHeadingFold(h, btn);
+    });
+  });
+
+  // #33 Smart promote / demote of headings on Tab/Shift+Tab
+  editor.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const sel = window.getSelection();
+    let n = sel && sel.anchorNode;
+    if (n && n.nodeType !== 1) n = n.parentElement;
+    const h = n && n.closest && n.closest('h1,h2,h3,h4,h5,h6');
+    if (!h) return;
+    e.preventDefault();
+    const lvl = parseInt(h.tagName.charAt(1), 10);
+    const next = e.shiftKey ? Math.max(1, lvl - 1) : Math.min(6, lvl + 1);
+    if (next === lvl) return;
+    const replacement = document.createElement('h' + next);
+    replacement.innerHTML = h.innerHTML;
+    Array.from(h.attributes).forEach((a) => replacement.setAttribute(a.name, a.value));
+    h.parentNode.replaceChild(replacement, h);
+    // Move caret into new heading
+    const r = document.createRange();
+    r.selectNodeContents(replacement);
+    r.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    queueAutosave();
+    if (typeof rebuildOutline === 'function') rebuildOutline();
+  }, true);
+
+  // ============================================================
   // FEATURE: Section C — Tables advanced (#21–#27)
   // ============================================================
   // Helper: column index <-> letter
