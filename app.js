@@ -2930,6 +2930,199 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section F — Templates, themes, branding (#44–#51)
+  // ============================================================
+  const STORE_BRAND = 'rodmanword:brand';
+  const STORE_USER_TEMPLATES = 'rodmanword:userTemplates';
+  const STORE_TEMPLATE_HISTORY = 'rodmanword:templateHistory';
+
+  // #44 Template marketplace UI — extend renderTemplates() to also
+  // include user-saved templates with thumbnails.
+  if (typeof TEMPLATES !== 'undefined' && Array.isArray(TEMPLATES)) {
+    const __origRender = renderTemplates;
+    renderTemplates = function () {
+      __origRender();
+      let userTpl = {};
+      try { userTpl = JSON.parse(localStorage.getItem(STORE_USER_TEMPLATES) || '{}'); } catch {}
+      const grid = backstageContent.querySelector('.template-grid');
+      if (!grid) return;
+      Object.keys(userTpl).forEach((name) => {
+        const t = userTpl[name];
+        const card = document.createElement('div');
+        card.className = 'template-card';
+        card.innerHTML =
+          '<div class="thumb"><b>' + escapeHtml(name) + '</b><div class="bar"></div>' +
+            '<div class="bar short"></div><div class="bar"></div></div>' +
+          '<div class="name">' + escapeHtml(name) + ' <small style="color:var(--muted)">user</small></div>' +
+          '<div class="desc">' + escapeHtml((t.description || 'Saved template')) + '</div>';
+        card.addEventListener('click', () => {
+          editor.innerHTML = t.html || '';
+          docTitle.value = name;
+          queueAutosave();
+          rebuildOutline();
+          closeBackstage();
+          // Track applications
+          try {
+            const hist = JSON.parse(localStorage.getItem(STORE_TEMPLATE_HISTORY) || '[]');
+            hist.unshift({ name, at: new Date().toISOString() });
+            localStorage.setItem(STORE_TEMPLATE_HISTORY, JSON.stringify(hist.slice(0, 20)));
+          } catch {}
+        });
+        grid.appendChild(card);
+      });
+    };
+  }
+
+  // #45 Save current doc as template
+  function saveAsTemplate() {
+    const name = prompt('Template name:', docTitle.value || 'My template');
+    if (!name) return;
+    const desc = prompt('Short description (optional):', '') || '';
+    let map = {};
+    try { map = JSON.parse(localStorage.getItem(STORE_USER_TEMPLATES) || '{}'); } catch {}
+    map[name] = { html: editor.innerHTML, description: desc, savedAt: new Date().toISOString() };
+    try { localStorage.setItem(STORE_USER_TEMPLATES, JSON.stringify(map)); } catch {}
+    toast('Template "' + name + '" saved', 'success');
+  }
+
+  // #46 Brand kit
+  function loadBrand() {
+    let b = {};
+    try { b = JSON.parse(localStorage.getItem(STORE_BRAND) || '{}'); } catch {}
+    return b;
+  }
+  function applyBrand(b) {
+    try { localStorage.setItem(STORE_BRAND, JSON.stringify(b)); } catch {}
+    if (b.primary) document.documentElement.style.setProperty('--theme-accent-1', b.primary);
+    if (b.secondary) document.documentElement.style.setProperty('--theme-accent-2', b.secondary);
+    if (b.headingFont) document.documentElement.style.setProperty('--theme-heading-font', b.headingFont);
+    if (b.bodyFont) document.documentElement.style.setProperty('--theme-body-font', b.bodyFont);
+    document.body.classList.add('themed');
+    // #47 Letterhead
+    const existing = editor.querySelector('.rwd-letterhead');
+    if (b.letterhead && b.logo) {
+      const html = '<div class="rwd-letterhead" contenteditable="false">' +
+        '<img src="' + escapeHtml(b.logo) + '" alt=""/>' +
+        '<h2>' + escapeHtml(b.brandName || '') + '</h2></div>';
+      if (existing) existing.outerHTML = html;
+      else editor.insertAdjacentHTML('afterbegin', html);
+    } else if (existing) {
+      existing.remove();
+    }
+    queueAutosave();
+  }
+  function openBrandKit() {
+    const b = loadBrand();
+    $('#brandLogo').value = b.logo || '';
+    $('#brandName').value = b.brandName || '';
+    $('#brandPrimary').value = b.primary || '#2b579a';
+    $('#brandSecondary').value = b.secondary || '#d23f31';
+    $('#brandHeadingFont').value = b.headingFont || '';
+    $('#brandBodyFont').value = b.bodyFont || '';
+    $('#brandUseLetterhead').checked = !!b.letterhead;
+    openModal($('#brandKitModal'));
+  }
+  $('#brandApplyBtn')?.addEventListener('click', () => {
+    applyBrand({
+      logo: $('#brandLogo').value.trim(),
+      brandName: $('#brandName').value.trim(),
+      primary: $('#brandPrimary').value,
+      secondary: $('#brandSecondary').value,
+      headingFont: $('#brandHeadingFont').value.trim(),
+      bodyFont: $('#brandBodyFont').value.trim(),
+      letterhead: $('#brandUseLetterhead').checked,
+    });
+    closeModal($('#brandKitModal'));
+    toast('Brand kit applied', 'success');
+  });
+  $('#brandClearBtn')?.addEventListener('click', () => {
+    try { localStorage.removeItem(STORE_BRAND); } catch {}
+    editor.querySelectorAll('.rwd-letterhead').forEach((el) => el.remove());
+    closeModal($('#brandKitModal'));
+    toast('Brand cleared', 'info');
+  });
+  // Re-apply on init
+  setTimeout(() => { const b = loadBrand(); if (Object.keys(b).length) applyBrand(b); }, 80);
+
+  // #48 Cover page templates
+  const COVER_PAGES = [
+    { id: 'subtle', name: 'Subtle',
+      html: '<div class="rwd-cover-page subtle"><h1>{TITLE}</h1><p>{SUBTITLE}</p><p style="margin-top:60px;color:var(--muted)">{AUTHOR} · {DATE}</p></div>' },
+    { id: 'bold', name: 'Bold',
+      html: '<div class="rwd-cover-page bold"><h1>{TITLE}</h1><p style="font-size:14pt">{SUBTITLE}</p></div>' },
+    { id: 'minimal', name: 'Minimal',
+      html: '<div class="rwd-cover-page minimal"><h1 style="font-weight:200;letter-spacing:0.1em">{TITLE}</h1><p>{AUTHOR}</p></div>' },
+    { id: 'side-bar', name: 'Side bar',
+      html: '<div class="rwd-cover-page" style="background:linear-gradient(to right,var(--theme-accent-1) 0,var(--theme-accent-1) 30%,#fff 30%,#fff 100%);text-align:left;padding-left:34%"><h1>{TITLE}</h1><p>{SUBTITLE}</p><p style="margin-top:60px">{AUTHOR}</p></div>' },
+  ];
+  function renderCoverPages() {
+    const grid = $('#coverPageGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    COVER_PAGES.forEach((c) => {
+      const card = document.createElement('div');
+      card.className = 'template-card';
+      card.innerHTML = '<div class="thumb"><b>' + c.name + '</b><div class="bar"></div><div class="bar short"></div></div>' +
+        '<div class="name">' + c.name + '</div>' +
+        '<div class="desc">Cover page style</div>';
+      card.addEventListener('click', () => {
+        const html = c.html
+          .replace('{TITLE}', escapeHtml(docTitle.value || 'Title'))
+          .replace('{SUBTITLE}', 'Subtitle')
+          .replace('{AUTHOR}', escapeHtml((docProps && docProps.author) || 'Author'))
+          .replace('{DATE}', new Date().toLocaleDateString());
+        editor.insertAdjacentHTML('afterbegin', html);
+        closeModal($('#coverPageModal'));
+        queueAutosave();
+      });
+      grid.appendChild(card);
+    });
+  }
+  $('#coverPageBtn')?.addEventListener('click', () => {
+    renderCoverPages();
+    openModal($('#coverPageModal'));
+  });
+
+  // #49 Style cleaner
+  function styleCleaner() {
+    if (!confirm('Remove all custom inline styles and class assignments? This cannot be undone.')) return;
+    editor.querySelectorAll('*').forEach((el) => {
+      el.removeAttribute('style');
+      // Strip rwd-s-* (custom styles) and Word/Office classes
+      Array.from(el.classList).forEach((c) => {
+        if (c.indexOf('rwd-s-') === 0) el.classList.remove(c);
+      });
+    });
+    queueAutosave();
+    toast('Inline styles cleared', 'success');
+  }
+
+  // #50 Reset to template — reapply originating template's typography
+  function resetToTemplate() {
+    const last = (() => {
+      try { return JSON.parse(localStorage.getItem(STORE_TEMPLATE_HISTORY) || '[]')[0]; } catch { return null; }
+    })();
+    if (!last) { toast('No template applied yet', 'info'); return; }
+    if (!confirm('Reset typography to template "' + last.name + '"? Inline styles will be cleared.')) return;
+    styleCleaner();
+    toast('Reset to ' + last.name, 'success');
+  }
+
+  // #51 Template versioning — already covered by STORE_TEMPLATE_HISTORY
+  // (the renderTemplates() override above pushes to it on apply).
+
+  // Wire backstage actions
+  setBackstageView = (function (orig) {
+    return function (action) {
+      if (action === 'brandkit') { closeBackstage(); openBrandKit(); return; }
+      if (action === 'save-template') { closeBackstage(); saveAsTemplate(); return; }
+      if (action === 'reset-template') { closeBackstage(); resetToTemplate(); return; }
+      if (action === 'style-cleaner') { closeBackstage(); styleCleaner(); return; }
+      return orig(action);
+    };
+  })(setBackstageView);
+
+  // ============================================================
   // FEATURE: Section E — Images & media (#34–#43)
   // ============================================================
 

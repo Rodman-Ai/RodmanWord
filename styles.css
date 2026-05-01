@@ -499,6 +499,42 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Brand kit + cover pages */
+.editor .rwd-letterhead {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 2px solid var(--theme-accent-1, var(--primary));
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+}
+.editor .rwd-letterhead img { max-height: 56px; }
+.editor .rwd-letterhead h2 {
+  margin: 0; color: var(--theme-accent-1, var(--primary));
+}
+.editor .rwd-cover-page {
+  page-break-after: always;
+  break-after: page;
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  border-bottom: 1px dashed var(--ribbon-border);
+  padding: 60px 20px;
+  margin-bottom: 24px;
+}
+.editor .rwd-cover-page h1 {
+  font-size: 36pt; color: var(--theme-accent-1, var(--primary));
+}
+.editor .rwd-cover-page.subtle h1 { font-weight: 300; letter-spacing: 0.05em; }
+.editor .rwd-cover-page.bold {
+  background: linear-gradient(135deg, var(--theme-accent-1, var(--primary)) 0%, var(--theme-accent-2, var(--primary-light)) 100%);
+  color: #fff;
+}
+.editor .rwd-cover-page.bold h1, .editor .rwd-cover-page.bold p { color: #fff; }
+.editor .rwd-cover-page.minimal { padding: 100px 20px; }
+
 /* Image gallery / carousel / frames */
 .editor .rwd-gallery {
   display: grid; grid-template-columns: repeat(auto-fill,minmax(140px,1fr));

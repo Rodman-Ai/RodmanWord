@@ -262,6 +262,7 @@
       </div>
       <div class="group">
         <div class="group-row">
+          <button class="ribbon-btn wide" id="coverPageBtn" title="Cover page">📄 Cover</button>
           <button class="ribbon-btn wide" id="insertHeaderBtn" title="Edit page header">▔ Header</button>
           <button class="ribbon-btn wide" id="insertFooterBtn" title="Edit page footer">▁ Footer</button>
           <button class="ribbon-btn wide" id="insertPageNumBtn" title="Insert page number field">№ Page number</button>
@@ -576,6 +577,10 @@
         <li><button data-action="encrypt">Save encrypted</button></li>
         <li><button data-action="customcss">Custom CSS</button></li>
         <li><button data-action="themes">Document themes</button></li>
+        <li><button data-action="brandkit">Brand kit</button></li>
+        <li><button data-action="save-template">Save as template</button></li>
+        <li><button data-action="reset-template">Reset to template</button></li>
+        <li><button data-action="style-cleaner">Style cleaner</button></li>
         <li><button data-action="stylesio">Styles import/export</button></li>
         <li><button data-action="translate">Translate…</button></li>
         <li><button data-action="about">About</button></li>
@@ -825,6 +830,45 @@
         <ul id="stylesList" class="snippet-list"></ul>
       </div>
       <footer><button class="btn primary" data-close-modal>Done</button></footer>
+    </div>
+  </div>
+
+  <!-- Brand kit modal -->
+  <div class="modal" id="brandKitModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Brand kit</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Logo + colors + fonts. Letterhead applies the logo to the page header on the first page.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label>Logo URL <input id="brandLogo" type="text" placeholder="https://… or data:image/…" /></label>
+          <label>Brand name <input id="brandName" type="text" placeholder="Acme Corp" /></label>
+          <label>Primary color <input id="brandPrimary" type="color" value="#2b579a" /></label>
+          <label>Secondary color <input id="brandSecondary" type="color" value="#d23f31" /></label>
+          <label>Heading font <input id="brandHeadingFont" type="text" placeholder="Segoe UI" /></label>
+          <label>Body font <input id="brandBodyFont" type="text" placeholder="Calibri" /></label>
+        </div>
+        <label class="row"><input type="checkbox" id="brandUseLetterhead" /> Apply as letterhead (first-page header)</label>
+      </div>
+      <footer>
+        <button class="btn" id="brandClearBtn">Clear</button>
+        <button class="btn primary" id="brandApplyBtn">Apply</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Cover page templates modal -->
+  <div class="modal" id="coverPageModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Cover page</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Pick a cover-page block to insert at the top of the document.</p>
+        <div id="coverPageGrid" class="template-grid"></div>
+      </div>
+      <footer><button class="btn" data-close-modal>Close</button></footer>
     </div>
   </div>
 
