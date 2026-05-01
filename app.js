@@ -2930,6 +2930,109 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section H — Forms & fields advanced (#59–#63)
+  // ============================================================
+
+  // #59 Date-picker form field
+  $('#formDateBtn')?.addEventListener('click', () => {
+    const html = '<input class="rwd-form-date" type="date"/>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // #60 Number form field with validation
+  $('#formNumberBtn')?.addEventListener('click', () => {
+    const min = prompt('Min (blank for none):', '0');
+    const max = prompt('Max (blank for none):', '');
+    const step = prompt('Step (blank for 1):', '1');
+    const required = confirm('Required?');
+    let html = '<input class="rwd-form-number" type="number"';
+    if (min !== null && min !== '') html += ' min="' + escapeHtml(min) + '"';
+    if (max !== null && max !== '') html += ' max="' + escapeHtml(max) + '"';
+    if (step !== null && step !== '') html += ' step="' + escapeHtml(step) + '"';
+    if (required) html += ' required';
+    html += '/>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // #61 Required marker — extend formTextBtn to also support required
+  // Already done via the formNumberBtn flow; for the existing text
+  // field, add a small dblclick to toggle required.
+  editor.addEventListener('dblclick', (e) => {
+    const inp = e.target.closest && e.target.closest('input.rwd-form-text, input.rwd-form-date, input.rwd-form-number, select.rwd-form-select');
+    if (!inp) return;
+    e.preventDefault();
+    const wasRequired = inp.hasAttribute('required');
+    if (wasRequired) inp.removeAttribute('required');
+    else inp.setAttribute('required', '');
+    toast('Field is now ' + (wasRequired ? 'optional' : 'required'), 'info');
+    queueAutosave();
+  });
+
+  // #62 Form data export — CSV row of all form-field values
+  $('#formExportBtn')?.addEventListener('click', () => {
+    const fields = Array.from(editor.querySelectorAll(
+      'input.rwd-form-text, input.rwd-form-date, input.rwd-form-number, ' +
+      'input.rwd-form-check, select.rwd-form-select'));
+    if (!fields.length) { toast('No form fields found', 'info'); return; }
+    const headers = fields.map((f, i) => f.placeholder || ('field-' + (i + 1)));
+    const values = fields.map((f) => {
+      if (f.type === 'checkbox') return f.checked ? 'true' : 'false';
+      return (f.value || '').toString();
+    });
+    const csv = headers.join(',') + '\n' +
+      values.map((v) => '"' + v.replace(/"/g, '""') + '"').join(',');
+    downloadBlob(csv, sanitizeFileName(docTitle.value || 'form') + '.csv', 'text/csv');
+    toast('Form data exported', 'success');
+  });
+
+  // #63 Field code editor — list every [data-field] in document order
+  $('#fieldCodeBtn')?.addEventListener('click', () => {
+    const ul = $('#fieldCodeList');
+    ul.innerHTML = '';
+    const tokens = Array.from(editor.querySelectorAll('[data-field]'));
+    if (!tokens.length) {
+      ul.innerHTML = '<li class="empty">No live fields in this document yet.</li>';
+    } else {
+      tokens.forEach((el, i) => {
+        const li = document.createElement('li');
+        li.innerHTML =
+          '<span class="name"><code>{' + escapeHtml(el.dataset.field) +
+          '}</code> → <i>' + escapeHtml(el.textContent) + '</i></span>' +
+          '<span class="actions">' +
+            '<button data-act="goto">Go</button>' +
+            '<button data-act="change">Change type</button>' +
+            '<button data-act="delete">Remove</button>' +
+          '</span>';
+        li.querySelector('[data-act="goto"]').addEventListener('click', () => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.style.outline = '2px solid var(--theme-accent-2)';
+          setTimeout(() => { el.style.outline = ''; }, 1000);
+        });
+        li.querySelector('[data-act="change"]').addEventListener('click', () => {
+          const v = prompt('Field type (page / pages / date / time / datetime / docTitle / author / wordCount):',
+            el.dataset.field);
+          if (!v || !FIELDS[v]) { toast('Unknown field type', 'error'); return; }
+          el.dataset.field = v;
+          refreshFields();
+          queueAutosave();
+          $('#fieldCodeBtn').click();
+        });
+        li.querySelector('[data-act="delete"]').addEventListener('click', () => {
+          el.remove();
+          queueAutosave();
+          $('#fieldCodeBtn').click();
+        });
+        ul.appendChild(li);
+      });
+    }
+    openModal($('#fieldCodeModal'));
+  });
+
+  // ============================================================
   // FEATURE: Section G — References & academic (#52–#58)
   // ============================================================
   const STORE_CITESTYLE = 'rodmanword:citeStyle';

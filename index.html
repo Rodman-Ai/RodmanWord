@@ -250,6 +250,10 @@
           <button class="ribbon-btn wide" id="formTextBtn" title="Insert text form field">✎ Text field</button>
           <button class="ribbon-btn wide" id="formCheckBtn" title="Insert checkbox">☐ Checkbox</button>
           <button class="ribbon-btn wide" id="formSelectBtn" title="Insert dropdown">▾ Dropdown</button>
+          <button class="ribbon-btn wide" id="formDateBtn" title="Date picker form field">📅 Date field</button>
+          <button class="ribbon-btn wide" id="formNumberBtn" title="Number field with validation">№ Number field</button>
+          <button class="ribbon-btn wide" id="formExportBtn" title="Export form data as CSV">⤓ Form data</button>
+          <button class="ribbon-btn wide" id="fieldCodeBtn" title="Field code editor">{ } Field codes</button>
           <button class="ribbon-btn wide" id="shapeRectBtn" title="Insert rectangle">▭ Rect</button>
           <button class="ribbon-btn wide" id="shapeEllipseBtn" title="Insert ellipse">◯ Ellipse</button>
           <button class="ribbon-btn wide" id="shapeArrowBtn" title="Insert arrow">→ Arrow</button>
@@ -883,6 +887,20 @@
         <div id="coverPageGrid" class="template-grid"></div>
       </div>
       <footer><button class="btn" data-close-modal>Close</button></footer>
+    </div>
+  </div>
+
+  <!-- Field code editor modal -->
+  <div class="modal" id="fieldCodeModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Field codes</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">All live-field tokens currently in the document. Click one to jump to it; double-click to change its type.</p>
+        <ol id="fieldCodeList" class="snippet-list"></ol>
+      </div>
+      <footer><button class="btn primary" data-close-modal>Close</button></footer>
     </div>
   </div>
 

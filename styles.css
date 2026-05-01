@@ -499,6 +499,27 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Form fields advanced */
+.editor input.rwd-form-date,
+.editor input.rwd-form-number {
+  font: inherit;
+  border: none;
+  border-bottom: 1px solid var(--theme-accent-1, var(--primary));
+  background: rgba(43,87,154,0.04);
+  padding: 0 4px;
+  outline: none;
+}
+.editor input[required].rwd-form-text,
+.editor input[required].rwd-form-date,
+.editor input[required].rwd-form-number {
+  border-bottom-color: var(--theme-accent-2, #d23f31);
+}
+.editor input.rwd-form-text:invalid,
+.editor input.rwd-form-number:invalid,
+.editor input.rwd-form-date:invalid {
+  background: rgba(210,63,49,0.08);
+}
+
 /* Index entries (back-of-book) */
 .editor .rwd-index {
   text-decoration: underline dotted var(--theme-accent-3, #ff8f00);
