@@ -2930,6 +2930,381 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Review tab — restructure + 9 review-depth items
+  // (100-feature-plan items #1 — #10)
+  // ============================================================
+
+  // --- #1 Wire Review tab buttons to existing handlers --------
+  $('#reviewSpellBtn')?.addEventListener('click', () => {
+    const t = $('#spellToggle');
+    if (t) { t.checked = !t.checked; t.dispatchEvent(new Event('change')); }
+  });
+  $('#reviewGrammarBtn')?.addEventListener('click', () => {
+    const t = $('#grammarToggle');
+    if (t) { t.checked = !t.checked; t.dispatchEvent(new Event('change')); }
+  });
+  $('#reviewWordCountBtn')?.addEventListener('click', () => {
+    if (typeof renderCountModal === 'function') renderCountModal();
+    if (typeof countModal !== 'undefined') openModal(countModal);
+  });
+  $('#reviewNewCommentBtn')?.addEventListener('click', () => $('#commentBtn')?.click());
+  $('#reviewToggleCommentsBtn')?.addEventListener('click', () => {
+    const t = $('#commentsPaneToggle');
+    if (t) { t.checked = !t.checked; t.dispatchEvent(new Event('change')); }
+  });
+  $('#reviewResolveBtn')?.addEventListener('click', () => {
+    if (!editingThreadId) {
+      toast('Open a comment thread first', 'info');
+      return;
+    }
+    const cb = $('#commentResolved');
+    if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); }
+  });
+  // Mirror the existing track-changes toggle so flipping either checkbox
+  // keeps both in sync.
+  const trackToggleA = $('#trackChangesToggle');
+  const trackToggleB = $('#reviewTrackChangesToggle');
+  if (trackToggleA && trackToggleB) {
+    trackToggleA.addEventListener('change', () => {
+      trackToggleB.checked = trackToggleA.checked;
+    });
+    trackToggleB.addEventListener('change', () => {
+      trackToggleA.checked = trackToggleB.checked;
+      trackToggleA.dispatchEvent(new Event('change'));
+    });
+  }
+  // Same for restrict-edit
+  const restrictA = $('#restrictEditToggle');
+  const restrictB = $('#reviewRestrictEditToggle');
+  if (restrictA && restrictB) {
+    restrictA.addEventListener('change', () => {
+      restrictB.checked = restrictA.checked;
+    });
+    restrictB.addEventListener('change', () => {
+      restrictA.checked = restrictB.checked;
+      restrictA.dispatchEvent(new Event('change'));
+    });
+  }
+  $('#reviewCompareBtn')?.addEventListener('click', () => openModal($('#compareModal')));
+  $('#reviewTranslateBtn')?.addEventListener('click', () => openModal($('#translateModal')));
+  $('#reviewAcceptAllBtn')?.addEventListener('click', () => $('#acceptAllBtn')?.click());
+  $('#reviewRejectAllBtn')?.addEventListener('click', () => $('#rejectAllBtn')?.click());
+
+  // --- #2 Show / Hide markup filter ---------------------------
+  $('#reviewMarkupFilter')?.addEventListener('change', (e) => {
+    const v = e.target.value;
+    editor.classList.remove('markup-hide-ins','markup-hide-del','markup-hide-comments',
+      'markup-only-comments','markup-none');
+    if (v === 'ins') editor.classList.add('markup-hide-del','markup-hide-comments');
+    else if (v === 'del') editor.classList.add('markup-hide-ins','markup-hide-comments');
+    else if (v === 'comments') editor.classList.add('markup-only-comments');
+    else if (v === 'none') editor.classList.add('markup-none');
+  });
+
+  // --- #3, #4 Reviewing pane navigation -----------------------
+  function allChanges() {
+    return Array.from(editor.querySelectorAll('ins.rwd-ins, del.rwd-del'));
+  }
+  function allComments() {
+    return Array.from(editor.querySelectorAll('.rwd-comment'));
+  }
+  let currentChangeIdx = -1;
+  let currentCommentIdx = -1;
+  function focusItem(arr, idx) {
+    if (!arr.length) { toast('Nothing to navigate', 'info'); return; }
+    arr.forEach((n) => n.classList.remove('rwd-change-current'));
+    const el = arr[(idx + arr.length) % arr.length];
+    el.classList.add('rwd-change-current');
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return el;
+  }
+  $('#reviewPrevChangeBtn')?.addEventListener('click', () => {
+    const arr = allChanges();
+    currentChangeIdx = (currentChangeIdx <= 0 ? arr.length : currentChangeIdx) - 1;
+    focusItem(arr, currentChangeIdx);
+  });
+  $('#reviewNextChangeBtn')?.addEventListener('click', () => {
+    const arr = allChanges();
+    currentChangeIdx = (currentChangeIdx + 1) % Math.max(1, arr.length);
+    focusItem(arr, currentChangeIdx);
+  });
+  $('#reviewAcceptBtn')?.addEventListener('click', () => {
+    const arr = allChanges();
+    if (!arr.length) return;
+    const el = arr[Math.max(0, currentChangeIdx)];
+    if (el && typeof acceptChange === 'function') {
+      acceptChange(el);
+      rebuildReviewPane();
+      queueAutosave();
+    }
+  });
+  $('#reviewRejectBtn')?.addEventListener('click', () => {
+    const arr = allChanges();
+    if (!arr.length) return;
+    const el = arr[Math.max(0, currentChangeIdx)];
+    if (el && typeof rejectChange === 'function') {
+      rejectChange(el);
+      rebuildReviewPane();
+      queueAutosave();
+    }
+  });
+  $('#reviewPrevCommentBtn')?.addEventListener('click', () => {
+    const arr = allComments();
+    currentCommentIdx = (currentCommentIdx <= 0 ? arr.length : currentCommentIdx) - 1;
+    focusItem(arr, currentCommentIdx);
+  });
+  $('#reviewNextCommentBtn')?.addEventListener('click', () => {
+    const arr = allComments();
+    currentCommentIdx = (currentCommentIdx + 1) % Math.max(1, arr.length);
+    focusItem(arr, currentCommentIdx);
+  });
+  $('#reviewPaneBtn')?.addEventListener('click', () => {
+    const t = $('#trackChangesToggle');
+    if (t && !t.checked) { t.checked = true; t.dispatchEvent(new Event('change')); }
+    const pane = $('#reviewPane');
+    if (pane) pane.hidden = !pane.hidden;
+  });
+
+  // --- #5 Reviewer filter -------------------------------------
+  function rebuildReviewerFilter() {
+    const sel = $('#reviewerFilter');
+    if (!sel) return;
+    const authors = new Set();
+    editor.querySelectorAll('ins.rwd-ins, del.rwd-del').forEach((el) => {
+      if (el.dataset.author) authors.add(el.dataset.author);
+    });
+    Object.values(threads || {}).forEach((t) => {
+      (t.replies || []).forEach((r) => r.author && authors.add(r.author));
+    });
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">All reviewers</option>';
+    Array.from(authors).sort().forEach((a) => {
+      const opt = document.createElement('option');
+      opt.value = a; opt.textContent = a;
+      sel.appendChild(opt);
+    });
+    sel.value = cur;
+  }
+  $('#reviewerFilter')?.addEventListener('change', (e) => {
+    const target = e.target.value;
+    editor.classList.toggle('review-filter', !!target);
+    editor.querySelectorAll('ins.rwd-ins, del.rwd-del').forEach((el) => {
+      el.classList.toggle('matched-author', !target || el.dataset.author === target);
+    });
+    editor.querySelectorAll('.rwd-comment').forEach((sp) => {
+      const id = sp.dataset.threadId;
+      const t = id && threads[id];
+      const match = !target || (t && t.replies && t.replies.some((r) => r.author === target));
+      sp.classList.toggle('matched-author', match);
+    });
+  });
+  // Refresh authors list whenever the editor changes
+  editor.addEventListener('input', () => {
+    clearTimeout(window.__rwdRevT);
+    window.__rwdRevT = setTimeout(rebuildReviewerFilter, 400);
+  });
+
+  // --- #6 Mark final ------------------------------------------
+  const STORE_FINAL = 'rodmanword:markedFinal';
+  function applyFinal(on) {
+    document.body.classList.toggle('marked-final', on);
+    $('#finalBanner').hidden = !on;
+    editor.contentEditable = on ? 'false' : 'true';
+    if (docHeader) docHeader.contentEditable = on ? 'false' : 'true';
+    if (docFooter) docFooter.contentEditable = on ? 'false' : 'true';
+    try { localStorage.setItem(STORE_FINAL, on ? '1' : '0'); } catch {}
+  }
+  $('#reviewMarkFinalBtn')?.addEventListener('click', () => {
+    applyFinal(true);
+    toast('Document marked as Final', 'info');
+  });
+  $('#finalBannerEditBtn')?.addEventListener('click', () => {
+    applyFinal(false);
+  });
+  if (localStorage.getItem(STORE_FINAL) === '1') applyFinal(true);
+
+  // --- #7 Inspect document ------------------------------------
+  function inspectDoc() {
+    const findings = [];
+    const html = editor.innerHTML;
+    const selectors = [
+      ['comments', '.rwd-comment', 'Tracked comments'],
+      ['changes', 'ins.rwd-ins, del.rwd-del', 'Tracked changes (insertions or deletions)'],
+      ['watermark', null, 'DRAFT / CONFIDENTIAL watermark', () => {
+        const w = (() => { try { return JSON.parse(localStorage.getItem('rodmanword:watermark') || '{}'); } catch { return {}; }})();
+        return w.on ? 1 : 0;
+      }],
+      ['customCss', null, 'Custom CSS rules', () => {
+        return (localStorage.getItem('rodmanword:customCss') || '').trim() ? 1 : 0;
+      }],
+      ['author', null, 'Author metadata', () => {
+        return (docProps && docProps.author) ? 1 : 0;
+      }],
+      ['hidden', '[style*="display:none"], [style*="visibility:hidden"]', 'Hidden text'],
+      ['ghost', '.rwd-ghost', 'Smart Compose ghost suggestions'],
+      ['drawing', '.rwd-shape', 'Drawn shapes'],
+      ['equation', '.rwd-equation', 'Equations'],
+      ['linkjs', 'a[href^="javascript:"]', 'Suspicious javascript: links'],
+    ];
+    selectors.forEach(([id, sel, label, count]) => {
+      let n = 0;
+      if (sel) n = editor.querySelectorAll(sel).length;
+      else if (count) n = count();
+      if (n > 0) findings.push({ id, label, count: n });
+    });
+    return findings;
+  }
+  function renderInspect() {
+    const f = inspectDoc();
+    const div = $('#inspectFindings');
+    if (!f.length) {
+      div.innerHTML = '<p class="muted">No issues found. The document looks clean.</p>';
+      return;
+    }
+    div.innerHTML = '<ul class="snippet-list">' + f.map((x) =>
+      '<li><label style="display:flex;gap:8px;align-items:center;width:100%">' +
+      '<input type="checkbox" data-clean="' + escapeHtml(x.id) + '" checked />' +
+      '<span class="name">' + escapeHtml(x.label) + '</span>' +
+      '<span class="actions"><span class="reply-count">' + x.count + '</span></span>' +
+      '</label></li>').join('') + '</ul>';
+  }
+  $('#reviewInspectBtn')?.addEventListener('click', () => {
+    renderInspect();
+    openModal($('#inspectModal'));
+  });
+  $('#inspectCleanBtn')?.addEventListener('click', () => {
+    $$('#inspectFindings input[data-clean]').forEach((cb) => {
+      if (!cb.checked) return;
+      const id = cb.dataset.clean;
+      switch (id) {
+        case 'comments':
+          editor.querySelectorAll('.rwd-comment').forEach((s) => {
+            const p = s.parentNode;
+            while (s.firstChild) p.insertBefore(s.firstChild, s);
+            p.removeChild(s);
+          });
+          threads = {}; persistThreads();
+          break;
+        case 'changes':
+          editor.querySelectorAll('ins.rwd-ins, del.rwd-del').forEach((el) => {
+            if (typeof acceptChange === 'function') acceptChange(el);
+          });
+          break;
+        case 'watermark':
+          try { localStorage.setItem('rodmanword:watermark', JSON.stringify({ on: false, text: '' })); } catch {}
+          if (typeof applyWatermark === 'function') applyWatermark();
+          break;
+        case 'customCss':
+          localStorage.removeItem('rodmanword:customCss');
+          if (typeof applyCustomCss === 'function') applyCustomCss();
+          break;
+        case 'author':
+          if (docProps) { docProps = {}; localStorage.setItem('rodmanword:props', '{}'); }
+          break;
+        case 'hidden':
+          editor.querySelectorAll('[style*="display:none"], [style*="visibility:hidden"]').forEach((el) => el.remove());
+          break;
+        case 'ghost':
+          editor.querySelectorAll('.rwd-ghost').forEach((g) => g.remove());
+          break;
+        case 'linkjs':
+          editor.querySelectorAll('a[href^="javascript:"]').forEach((a) => a.removeAttribute('href'));
+          break;
+      }
+    });
+    queueAutosave();
+    renderInspect();
+    toast('Document cleaned', 'success');
+  });
+
+  // --- #8 Side-by-side compare with sync scroll ---------------
+  let sxsSyncOn = true;
+  $('#sxsSyncToggle')?.addEventListener('click', () => {
+    sxsSyncOn = !sxsSyncOn;
+    $('#sxsSyncToggle').textContent = 'Sync scroll: ' + (sxsSyncOn ? 'ON' : 'OFF');
+  });
+  $('#reviewSideBySideBtn')?.addEventListener('click', () => {
+    const left = $('#sxsLeft');
+    if (left) left.innerHTML = editor.innerHTML;
+    openModal($('#sideBySideModal'));
+    setTimeout(() => {
+      const l = $('#sxsLeft'), r = $('#sxsRight');
+      function bind(a, b) {
+        a.addEventListener('scroll', () => {
+          if (!sxsSyncOn) return;
+          const ratio = a.scrollTop / Math.max(1, a.scrollHeight - a.clientHeight);
+          b.scrollTop = ratio * (b.scrollHeight - b.clientHeight);
+        });
+      }
+      if (l && r) { bind(l, r); bind(r, l); }
+    }, 100);
+  });
+
+  // --- #9 3-way merge ----------------------------------------
+  $('#reviewMergeBtn')?.addEventListener('click', () => openModal($('#mergeModal')));
+  $('#mergeRunBtn')?.addEventListener('click', () => {
+    const base = $('#mergeBase').value || '';
+    const other = $('#mergeOther').value || '';
+    const mine = editor.innerText || '';
+    if (!base.trim() || !other.trim()) {
+      toast('Paste both base and other text', 'info');
+      return;
+    }
+    const baseLines = base.split(/\r?\n/);
+    const mineLines = mine.split(/\r?\n/);
+    const otherLines = other.split(/\r?\n/);
+    // Naive: line-by-line; if base == mine, take other; if base == other, take mine;
+    // else conflict block with picker.
+    const max = Math.max(baseLines.length, mineLines.length, otherLines.length);
+    let html = '';
+    for (let i = 0; i < max; i++) {
+      const b = baseLines[i] || '';
+      const m = mineLines[i] || '';
+      const o = otherLines[i] || '';
+      if (m === o) {
+        html += '<div>' + escapeHtml(m) + '</div>';
+      } else if (b === m) {
+        html += '<div class="add">+ ' + escapeHtml(o) + '</div>';
+      } else if (b === o) {
+        html += '<div>' + escapeHtml(m) + '</div>';
+      } else {
+        html += '<div class="del">▶ Conflict — yours: ' + escapeHtml(m) +
+          '<br/> theirs: ' + escapeHtml(o) + '</div>';
+      }
+    }
+    $('#mergeResult').innerHTML = html;
+  });
+  $('#mergeApplyBtn')?.addEventListener('click', () => {
+    const txt = $('#mergeResult').innerText;
+    if (!txt.trim()) { toast('Run merge first', 'info'); return; }
+    editor.innerHTML = txt.split(/\n/).map((l) => '<p>' + escapeHtml(l) + '</p>').join('');
+    closeModal($('#mergeModal'));
+    queueAutosave();
+  });
+
+  // --- #10 Per-section proofing language ---------------------
+  $('#reviewLanguage')?.addEventListener('change', (e) => {
+    document.documentElement.lang = e.target.value;
+    editor.lang = e.target.value;
+    toast('Proofing language: ' + e.target.value, 'info');
+  });
+  $('#reviewSectionLangBtn')?.addEventListener('click', () => {
+    const lang = $('#reviewLanguage').value || 'en';
+    // Wrap the active section in a <span lang=…> if it isn't already
+    const sel = window.getSelection();
+    let n = sel && sel.anchorNode;
+    if (n && n.nodeType !== 1) n = n.parentElement;
+    const block = n && n.closest && n.closest('p, h1, h2, h3, h4, h5, h6, blockquote, pre, li');
+    if (!block) {
+      toast('Place the cursor in a paragraph first', 'info');
+      return;
+    }
+    block.lang = lang;
+    queueAutosave();
+    toast('Section language set to ' + lang, 'success');
+  });
+
+  // ============================================================
   // FEATURE: Real-time collaborative editing — WebRTC P2P (Tier 1, #1)
   // ============================================================
   // No server. Peers exchange an SDP offer / answer manually (paste

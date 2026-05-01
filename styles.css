@@ -499,6 +499,68 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Mark-final banner */
+.final-banner {
+  position: fixed;
+  top: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+  padding: 8px 14px;
+  border-radius: 4px;
+  z-index: 80;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+[data-theme='dark'] .final-banner {
+  background: #4d3c1a;
+  color: #ffeeba;
+  border-color: #6b5722;
+}
+body.marked-final .editor,
+body.marked-final .page-header,
+body.marked-final .page-footer {
+  caret-color: transparent;
+}
+
+/* Reviewer filter dimming */
+.editor.review-filter ins.rwd-ins:not(.matched-author),
+.editor.review-filter del.rwd-del:not(.matched-author),
+.editor.review-filter .rwd-comment:not(.matched-author) {
+  opacity: 0.25;
+}
+
+/* Markup-filter visibility classes */
+.editor.markup-hide-ins ins.rwd-ins {
+  text-decoration: none; background: transparent;
+}
+.editor.markup-hide-del del.rwd-del { display: none; }
+.editor.markup-hide-comments .rwd-comment {
+  background: transparent; border-bottom: none;
+}
+.editor.markup-only-comments ins.rwd-ins {
+  text-decoration: none; background: transparent;
+}
+.editor.markup-only-comments del.rwd-del { display: none; }
+.editor.markup-none ins.rwd-ins {
+  text-decoration: none; background: transparent;
+}
+.editor.markup-none del.rwd-del { display: none; }
+.editor.markup-none .rwd-comment {
+  background: transparent; border-bottom: none;
+}
+
+/* Currently-focused change ring */
+.editor .rwd-change-current {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* Presence pill */
 .presence-pill {
   display: inline-flex;

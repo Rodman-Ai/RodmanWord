@@ -49,6 +49,7 @@
     <button class="tab active" role="tab" aria-selected="true" data-tab="home">Home</button>
     <button class="tab" role="tab" data-tab="insert">Insert</button>
     <button class="tab" role="tab" data-tab="layout">Layout</button>
+    <button class="tab" role="tab" data-tab="review">Review</button>
     <button class="tab" role="tab" data-tab="view">View</button>
   </nav>
 
@@ -318,6 +319,99 @@
           </label>
         </div>
         <div class="group-label">Page setup</div>
+      </div>
+    </div>
+
+    <!-- Review tab -->
+    <div class="ribbon-panel" data-panel="review">
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="reviewSpellBtn" title="Run spell check">📖 Spelling</button>
+          <button class="ribbon-btn" id="reviewGrammarBtn" title="Run grammar">✓ Grammar</button>
+          <button class="ribbon-btn" id="reviewWordCountBtn" title="Word count details">∑ Word count</button>
+        </div>
+        <div class="group-label">Proofing</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="reviewNewCommentBtn" title="New comment">💬 New</button>
+          <button class="ribbon-btn" id="reviewToggleCommentsBtn" title="Show comments pane">▣ Pane</button>
+          <button class="ribbon-btn" id="reviewPrevCommentBtn" title="Previous comment">◀</button>
+          <button class="ribbon-btn" id="reviewNextCommentBtn" title="Next comment">▶</button>
+          <button class="ribbon-btn" id="reviewResolveBtn" title="Resolve / unresolve">✓</button>
+        </div>
+        <div class="group-label">Comments</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <label class="control switch" style="margin:0">
+            <input type="checkbox" id="reviewTrackChangesToggle" />
+            <span>Track changes</span>
+          </label>
+          <select class="select sm" id="reviewMarkupFilter" title="Show markup">
+            <option value="all">All markup</option>
+            <option value="ins">Insertions</option>
+            <option value="del">Deletions</option>
+            <option value="comments">Comments only</option>
+            <option value="none">No markup</option>
+          </select>
+          <select class="select sm" id="reviewerFilter" title="Filter by reviewer">
+            <option value="">All reviewers</option>
+          </select>
+          <button class="ribbon-btn" id="reviewPaneBtn" title="Reviewing pane">▤ Reviewing pane</button>
+        </div>
+        <div class="group-label">Tracking</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="reviewPrevChangeBtn" title="Previous change">◀ Prev</button>
+          <button class="ribbon-btn" id="reviewNextChangeBtn" title="Next change">Next ▶</button>
+          <button class="ribbon-btn" id="reviewAcceptBtn" title="Accept current change">✔ Accept</button>
+          <button class="ribbon-btn" id="reviewRejectBtn" title="Reject current change">✘ Reject</button>
+          <button class="ribbon-btn" id="reviewAcceptAllBtn" title="Accept all">✔✔ All</button>
+          <button class="ribbon-btn" id="reviewRejectAllBtn" title="Reject all">✘✘ All</button>
+        </div>
+        <div class="group-label">Changes</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="reviewCompareBtn" title="Compare with another doc">⇄ Compare</button>
+          <button class="ribbon-btn" id="reviewSideBySideBtn" title="Side-by-side compare">⇉ Side-by-side</button>
+          <button class="ribbon-btn" id="reviewMergeBtn" title="3-way merge">⊕ 3-way merge</button>
+        </div>
+        <div class="group-label">Compare</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <label class="control switch" style="margin:0">
+            <input type="checkbox" id="reviewRestrictEditToggle" />
+            <span>Restrict</span>
+          </label>
+          <button class="ribbon-btn" id="reviewMarkFinalBtn" title="Mark as final">🔒 Mark final</button>
+          <button class="ribbon-btn" id="reviewInspectBtn" title="Inspect document">🔎 Inspect</button>
+        </div>
+        <div class="group-label">Protect</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <select class="select sm" id="reviewLanguage" title="Proofing language">
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="it">Italian</option>
+            <option value="pt">Portuguese</option>
+            <option value="nl">Dutch</option>
+            <option value="ja">Japanese</option>
+            <option value="zh-CN">Chinese</option>
+            <option value="ko">Korean</option>
+            <option value="ru">Russian</option>
+            <option value="ar">Arabic</option>
+          </select>
+          <button class="ribbon-btn" id="reviewSectionLangBtn" title="Set language for current section">§ Section lang</button>
+          <button class="ribbon-btn" id="reviewTranslateBtn" title="Translate document">🌐 Translate</button>
+        </div>
+        <div class="group-label">Language</div>
       </div>
     </div>
 
@@ -684,6 +778,65 @@
         <ul id="stylesList" class="snippet-list"></ul>
       </div>
       <footer><button class="btn primary" data-close-modal>Done</button></footer>
+    </div>
+  </div>
+
+  <!-- Inspect Document modal -->
+  <div class="modal" id="inspectModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Inspect document</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Scan the document for hidden content, leftover comments, drafts, custom CSS, and stray metadata. Pick what to remove.</p>
+        <div id="inspectFindings"></div>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Close</button>
+        <button class="btn primary" id="inspectCleanBtn">Clean selected</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Side-by-side compare modal -->
+  <div class="modal" id="sideBySideModal" hidden>
+    <div class="modal-card lg" style="max-width:1100px">
+      <header><h3>Side-by-side compare</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body" style="padding:0">
+        <div class="sxs-toolbar" style="padding:8px;display:flex;gap:8px;border-bottom:1px solid var(--ribbon-border)">
+          <label style="flex:1">Other version (paste plain text):</label>
+          <button class="btn" id="sxsSyncToggle">Sync scroll: ON</button>
+        </div>
+        <div class="sxs-pair" style="display:flex;gap:0;height:64vh">
+          <div style="flex:1;border-right:1px solid var(--ribbon-border);overflow:auto;padding:12px;background:var(--page-bg);font-size:13px" id="sxsLeft"></div>
+          <div style="flex:1;overflow:auto;padding:12px;background:var(--page-bg);font-size:13px" id="sxsRight"><textarea id="sxsRightInput" rows="20" style="width:100%;height:100%;border:none;outline:none;background:transparent;font-family:inherit;font-size:13px" placeholder="Paste the other version here…"></textarea></div>
+        </div>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Close</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- 3-way merge modal -->
+  <div class="modal" id="mergeModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>3-way merge</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Pick a base version and an "other" version. Each conflict block lets you choose which side to keep.</p>
+        <label>Base text <textarea id="mergeBase" rows="4" placeholder="Original text both versions started from"></textarea></label>
+        <label>Other text <textarea id="mergeOther" rows="4" placeholder="The other person's version"></textarea></label>
+        <button class="btn" id="mergeRunBtn">Compute merge</button>
+        <div id="mergeResult" class="compare-result"></div>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Close</button>
+        <button class="btn primary" id="mergeApplyBtn">Apply merged result</button>
+      </footer>
     </div>
   </div>
 
@@ -1122,6 +1275,12 @@
 
   <!-- Reading-mode bar -->
   <button id="readingExitBtn" class="focus-mode-exit" hidden>Exit reading mode (Esc)</button>
+
+  <!-- Mark-final banner -->
+  <div id="finalBanner" class="final-banner" hidden>
+    🔒 This document is marked as <b>Final</b>. Editing is disabled.
+    <button class="btn" id="finalBannerEditBtn">Edit anyway</button>
+  </div>
 
   <!-- Toast container -->
   <div id="toastContainer" class="toasts"></div>
