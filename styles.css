@@ -499,6 +499,23 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Outline collapsing */
+.editor h1, .editor h2, .editor h3, .editor h4, .editor h5, .editor h6 {
+  position: relative;
+}
+.editor .rwd-collapse {
+  position: absolute;
+  left: -22px; top: 0.4em;
+  width: 18px; height: 18px;
+  border: none; background: transparent;
+  font-family: inherit; font-size: 16px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.editor .rwd-collapse:hover { color: var(--primary); }
+.editor .rwd-folded { display: none !important; }
+
 /* Tab stops with leaders */
 .editor .rwd-tab {
   display: inline-flex;

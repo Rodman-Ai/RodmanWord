@@ -2690,6 +2690,46 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Outline view collapsible (Tier 2, gap #23)
+  // ============================================================
+  function decorateHeadingsForCollapse() {
+    editor.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach((h) => {
+      if (h.querySelector(':scope > .rwd-collapse')) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'rwd-collapse';
+      btn.contentEditable = 'false';
+      btn.textContent = '▾';
+      btn.title = 'Collapse / expand section';
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleHeadingFold(h, btn);
+      });
+      h.insertBefore(btn, h.firstChild);
+    });
+  }
+  function toggleHeadingFold(h, btn) {
+    const folded = btn.dataset.folded === '1';
+    const level = parseInt(h.tagName.charAt(1), 10);
+    let n = h.nextElementSibling;
+    while (n) {
+      if (/^H[1-6]$/.test(n.tagName) &&
+          parseInt(n.tagName.charAt(1), 10) <= level) break;
+      n.classList.toggle('rwd-folded', !folded);
+      n = n.nextElementSibling;
+    }
+    btn.dataset.folded = folded ? '0' : '1';
+    btn.textContent = folded ? '▾' : '▸';
+  }
+  // Run once on init and after every input
+  setTimeout(decorateHeadingsForCollapse, 100);
+  editor.addEventListener('input', () => {
+    clearTimeout(window.__rwdFoldT);
+    window.__rwdFoldT = setTimeout(decorateHeadingsForCollapse, 200);
+  });
+
+  // ============================================================
   // FEATURE: Insert chart from data (Tier 2, gap #18)
   // ============================================================
   const CHART_COLORS = ['#2b579a', '#d23f31', '#ff8f00', '#2e7d32',
