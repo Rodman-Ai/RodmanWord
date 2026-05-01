@@ -4291,6 +4291,16 @@ ${editor.innerHTML}
           cap.textContent = v;
         }
       }
+    } else if (a && a.indexOf('wrap-') === 0) {
+      const kind = a.slice(5);
+      const wrapClasses = ['rwd-wrap-square','rwd-wrap-tight','rwd-wrap-through',
+        'rwd-wrap-behind','rwd-wrap-front','rwd-wrap-none'];
+      [target, selectedImg].forEach((t) => {
+        if (!t) return;
+        wrapClasses.forEach((c) => t.classList.remove(c));
+        if (kind !== 'none') t.classList.add('rwd-wrap-' + kind);
+        else t.classList.add('rwd-wrap-none');
+      });
     } else if (a === 'rotate-l' || a === 'rotate-r') {
       const cur = parseInt(selectedImg.dataset.rotate || '0', 10);
       const next = (cur + (a === 'rotate-r' ? 90 : -90)) % 360;

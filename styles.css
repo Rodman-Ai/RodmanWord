@@ -414,6 +414,20 @@ body {
 .editor img.rwd-img-right  { float: right; margin: 0.2em 0 0.5em 1em; }
 .editor img.rwd-img-center { display: block; margin: 0.5em auto; float: none; }
 
+/* Wrap presets */
+.editor .rwd-wrap-square,
+.editor img.rwd-wrap-square { shape-outside: margin-box; float: left; margin: 0.2em 1em 0.5em 0; }
+.editor .rwd-wrap-tight,
+.editor img.rwd-wrap-tight { shape-outside: content-box; float: left; margin: 0.1em 0.4em 0.2em 0; clip-path: inset(0); }
+.editor .rwd-wrap-through,
+.editor img.rwd-wrap-through { shape-outside: padding-box; float: left; margin: 0; }
+.editor img.rwd-wrap-behind,
+.editor figure.rwd-wrap-behind { position: absolute; z-index: 0; opacity: 0.55; pointer-events: none; }
+.editor img.rwd-wrap-front,
+.editor figure.rwd-wrap-front { position: absolute; z-index: 5; }
+.editor img.rwd-wrap-none,
+.editor figure.rwd-wrap-none { float: none; display: inline; }
+
 .editor figure {
   display: inline-block;
   margin: 0.4em 0;
