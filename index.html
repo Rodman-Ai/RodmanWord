@@ -33,6 +33,7 @@
       </div>
     </div>
     <div class="title-actions">
+      <span id="presencePill" class="presence-pill" hidden></span>
       <button class="icon-btn" id="focusBtn" title="Focus mode (F11)" aria-label="Focus mode">⛶</button>
       <button class="icon-btn" id="helpBtn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
       <button class="icon-btn" id="toggleRibbonBtn" title="Show/hide ribbon" aria-label="Toggle ribbon">
@@ -418,6 +419,7 @@
         <li><button data-action="save-fs">Save to file…</button></li>
         <li><button data-action="open-fs">Open from file…</button></li>
         <li><button data-action="cloud-sync">Cloud sync (Gist)…</button></li>
+        <li><button data-action="collab">Collaborate (P2P)…</button></li>
         <li><button data-action="export-docx">Export Word (.docx)</button></li>
         <li><button data-action="export-pdf">Export PDF</button></li>
         <li><button data-action="export-html">Export HTML</button></li>
@@ -682,6 +684,44 @@
         <ul id="stylesList" class="snippet-list"></ul>
       </div>
       <footer><button class="btn primary" data-close-modal>Done</button></footer>
+    </div>
+  </div>
+
+  <!-- Collaborate (P2P WebRTC) modal -->
+  <div class="modal" id="collabModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Collaborate (peer-to-peer)</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Direct peer-to-peer editing over WebRTC. No server stores your document — peers exchange a one-time handshake code, then talk directly. Host shares the offer; guest pastes it and shares the answer back.</p>
+        <label>Your name <input id="collabName" type="text" placeholder="Alice" /></label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn" id="collabHostBtn">▶ Start as host</button>
+          <button class="btn" id="collabJoinBtn">↳ Join as guest</button>
+          <button class="btn" id="collabDisconnectBtn" hidden>✕ Disconnect</button>
+        </div>
+        <hr/>
+        <div id="collabHostStep" hidden>
+          <p><b>Step 1.</b> Send this offer code to your guest:</p>
+          <textarea id="collabOfferOut" rows="3" readonly spellcheck="false"></textarea>
+          <button class="btn" id="collabCopyOfferBtn">Copy offer</button>
+          <p style="margin-top:10px"><b>Step 2.</b> Paste the guest's answer here:</p>
+          <textarea id="collabAnswerIn" rows="3" placeholder="Paste guest's answer code…" spellcheck="false"></textarea>
+          <button class="btn primary" id="collabAcceptAnswerBtn">Accept answer</button>
+        </div>
+        <div id="collabGuestStep" hidden>
+          <p><b>Step 1.</b> Paste the host's offer here:</p>
+          <textarea id="collabOfferIn" rows="3" placeholder="Paste host's offer code…" spellcheck="false"></textarea>
+          <button class="btn primary" id="collabSubmitOfferBtn">Generate answer</button>
+          <p style="margin-top:10px"><b>Step 2.</b> Send this answer back to the host:</p>
+          <textarea id="collabAnswerOut" rows="3" readonly spellcheck="false"></textarea>
+          <button class="btn" id="collabCopyAnswerBtn">Copy answer</button>
+        </div>
+        <p id="collabStatus" class="muted"></p>
+        <ul id="collabPeers" class="snippet-list"></ul>
+      </div>
+      <footer><button class="btn primary" data-close-modal>Close</button></footer>
     </div>
   </div>
 

@@ -832,6 +832,19 @@
         closeBackstage();
         openFromFileSystem();
         break;
+      case 'collab':
+        closeBackstage();
+        $('#collabName').value = localStorage.getItem('rodmanword:collabName') ||
+          (docProps && docProps.author) || '';
+        $('#collabHostStep').hidden = true;
+        $('#collabGuestStep').hidden = true;
+        $('#collabStatus').textContent = collabConn && collabConn.connectionState === 'connected'
+          ? 'Currently connected'
+          : 'Pick a role to start';
+        $('#collabDisconnectBtn').hidden = !collabConn;
+        renderPeerList();
+        openModal($('#collabModal'));
+        break;
       case 'cloud-sync':
         closeBackstage();
         $('#ghToken').value = localStorage.getItem('rodmanword:ghToken') || '';
@@ -2914,6 +2927,301 @@ ${editor.innerHTML}
     if (!$('#grammarPane') || $('#grammarPane').hidden) return;
     clearTimeout(window.__rwdGrT);
     window.__rwdGrT = setTimeout(runGrammar, 800);
+  });
+
+  // ============================================================
+  // FEATURE: Real-time collaborative editing — WebRTC P2P (Tier 1, #1)
+  // ============================================================
+  // No server. Peers exchange an SDP offer / answer manually (paste
+  // through any out-of-band channel) and then send document snapshots
+  // and presence over an RTCDataChannel. ICE uses Google's public
+  // STUN servers. Sync model is last-writer-wins with timestamps —
+  // simple, not conflict-free; CRDT/OT is future work.
+  const STUN = [{ urls: 'stun:stun.l.google.com:19302' }];
+  let collabConn = null;
+  let collabChan = null;
+  let collabRole = null; // 'host' | 'guest'
+  let collabName = '';
+  let collabColor = '';
+  const peers = {}; // id -> { name, color, lastSeen }
+  const PEER_COLORS = ['#d23f31','#2b579a','#388e3c','#7b1fa2','#0097a7','#5d4037','#ef6c00'];
+  let lastAppliedAt = 0;
+
+  function pickColor() {
+    return PEER_COLORS[Math.floor(Math.random() * PEER_COLORS.length)];
+  }
+
+  function compactSdp(desc) {
+    // Just a JSON wrapper, base64 for short URLs / chats.
+    const payload = JSON.stringify({ type: desc.type, sdp: desc.sdp });
+    return btoa(unescape(encodeURIComponent(payload)));
+  }
+  function expandSdp(b64) {
+    return JSON.parse(decodeURIComponent(escape(atob(b64.trim()))));
+  }
+
+  function buildSnapshot() {
+    return {
+      type: 'doc',
+      title: docTitle.value,
+      html: editor.innerHTML,
+      header: docHeader ? docHeader.innerHTML : '',
+      footer: docFooter ? docFooter.innerHTML : '',
+      at: Date.now(),
+    };
+  }
+
+  function applySnapshot(s) {
+    if (!s || !s.html) return;
+    if (s.at && s.at <= lastAppliedAt) return; // older than what we have
+    // Ignore if it's identical (avoid feedback loop)
+    if (s.html === editor.innerHTML &&
+        (!docHeader || s.header === docHeader.innerHTML) &&
+        (!docFooter || s.footer === docFooter.innerHTML)) return;
+    // Save selection so we can try to restore caret position by offset
+    const sel = window.getSelection();
+    let caretOffset = -1;
+    if (sel && sel.anchorNode && editor.contains(sel.anchorNode)) {
+      const r = document.createRange();
+      r.setStart(editor, 0);
+      r.setEnd(sel.anchorNode, sel.anchorOffset);
+      caretOffset = r.toString().length;
+    }
+    suppressBroadcastUntil = Date.now() + 400;
+    editor.innerHTML = sanitizeImported(s.html);
+    if (docHeader && typeof s.header === 'string') {
+      docHeader.innerHTML = sanitizeImported(s.header);
+    }
+    if (docFooter && typeof s.footer === 'string') {
+      docFooter.innerHTML = sanitizeImported(s.footer);
+    }
+    if (s.title && docTitle.value !== s.title) docTitle.value = s.title;
+    lastAppliedAt = s.at || Date.now();
+    refreshFields();
+    // Restore caret approximately
+    if (caretOffset >= 0) {
+      let pos = 0;
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = walker.nextNode())) {
+        const len = n.nodeValue.length;
+        if (pos + len >= caretOffset) {
+          const r = document.createRange();
+          r.setStart(n, caretOffset - pos);
+          r.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(r);
+          break;
+        }
+        pos += len;
+      }
+    }
+  }
+
+  let suppressBroadcastUntil = 0;
+  function broadcastSnapshot() {
+    if (!collabChan || collabChan.readyState !== 'open') return;
+    if (Date.now() < suppressBroadcastUntil) return;
+    try { collabChan.send(JSON.stringify(buildSnapshot())); } catch {}
+  }
+  // Debounced broadcast on every editor input
+  let __collabT;
+  function scheduleBroadcast() {
+    clearTimeout(__collabT);
+    __collabT = setTimeout(broadcastSnapshot, 350);
+  }
+  editor.addEventListener('input', scheduleBroadcast);
+  if (docHeader) docHeader.addEventListener('input', scheduleBroadcast);
+  if (docFooter) docFooter.addEventListener('input', scheduleBroadcast);
+  docTitle.addEventListener('input', scheduleBroadcast);
+
+  function renderPeerList() {
+    const ul = $('#collabPeers');
+    if (!ul) return;
+    ul.innerHTML = '';
+    const ids = Object.keys(peers);
+    if (!ids.length) {
+      ul.innerHTML = '<li class="empty">No peers connected.</li>';
+    } else {
+      ids.forEach((id) => {
+        const p = peers[id];
+        const li = document.createElement('li');
+        li.innerHTML = '<span class="name">' +
+          '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' +
+          p.color + ';margin-right:6px"></span>' +
+          escapeHtml(p.name) + '</span>' +
+          '<span class="actions"><span style="color:#7fc97f;font-size:11px">● live</span></span>';
+        ul.appendChild(li);
+      });
+    }
+    refreshPresencePill();
+  }
+  function refreshPresencePill() {
+    const pill = $('#presencePill');
+    if (!pill) return;
+    const ids = Object.keys(peers);
+    if (!ids.length && !collabChan) { pill.hidden = true; return; }
+    pill.hidden = false;
+    pill.innerHTML = '';
+    ids.forEach((id) => {
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.style.background = peers[id].color;
+      dot.title = peers[id].name;
+      pill.appendChild(dot);
+    });
+    const live = document.createElement('span');
+    live.className = 'live';
+    pill.appendChild(live);
+  }
+
+  function attachDataChannel(ch) {
+    collabChan = ch;
+    ch.onopen = () => {
+      $('#collabStatus').textContent = '✓ Connected — exchanging documents';
+      // Send hello
+      try {
+        ch.send(JSON.stringify({
+          type: 'hello',
+          name: collabName,
+          color: collabColor,
+          id: collabRole + '-' + Math.random().toString(36).slice(2),
+        }));
+      } catch {}
+      // Host pushes its current document so guest joins in sync
+      if (collabRole === 'host') broadcastSnapshot();
+    };
+    ch.onmessage = (e) => {
+      let msg;
+      try { msg = JSON.parse(e.data); } catch { return; }
+      if (msg.type === 'hello') {
+        peers[msg.id] = { name: msg.name || 'Peer', color: msg.color || '#666', lastSeen: Date.now() };
+        renderPeerList();
+        // Reply with our own hello
+        try {
+          ch.send(JSON.stringify({
+            type: 'hello-ack',
+            name: collabName,
+            color: collabColor,
+            id: collabRole + '-self',
+          }));
+        } catch {}
+        // Send current state if guest just joined
+        if (collabRole === 'host') broadcastSnapshot();
+      } else if (msg.type === 'hello-ack') {
+        peers[msg.id] = { name: msg.name || 'Peer', color: msg.color || '#666', lastSeen: Date.now() };
+        renderPeerList();
+      } else if (msg.type === 'doc') {
+        applySnapshot(msg);
+      } else if (msg.type === 'bye') {
+        delete peers[msg.id];
+        renderPeerList();
+      }
+    };
+    ch.onclose = () => {
+      $('#collabStatus').textContent = 'Disconnected';
+      collabChan = null;
+      Object.keys(peers).forEach((k) => delete peers[k]);
+      renderPeerList();
+    };
+    ch.onerror = (e) => {
+      $('#collabStatus').textContent = '✗ Channel error';
+    };
+  }
+
+  async function startHost() {
+    collabRole = 'host';
+    collabName = $('#collabName').value.trim() || 'Host';
+    collabColor = pickColor();
+    localStorage.setItem('rodmanword:collabName', collabName);
+    $('#collabHostStep').hidden = false;
+    $('#collabGuestStep').hidden = true;
+    $('#collabStatus').textContent = 'Generating offer…';
+    collabConn = new RTCPeerConnection({ iceServers: STUN });
+    const ch = collabConn.createDataChannel('rwd', { ordered: true });
+    attachDataChannel(ch);
+    collabConn.onicegatheringstatechange = () => {
+      if (collabConn.iceGatheringState === 'complete') {
+        $('#collabOfferOut').value = compactSdp(collabConn.localDescription);
+        $('#collabStatus').textContent = 'Offer ready — share it with your guest';
+      }
+    };
+    const offer = await collabConn.createOffer();
+    await collabConn.setLocalDescription(offer);
+    $('#collabDisconnectBtn').hidden = false;
+  }
+
+  async function startGuest() {
+    collabRole = 'guest';
+    collabName = $('#collabName').value.trim() || 'Guest';
+    collabColor = pickColor();
+    localStorage.setItem('rodmanword:collabName', collabName);
+    $('#collabHostStep').hidden = true;
+    $('#collabGuestStep').hidden = false;
+    $('#collabStatus').textContent = 'Paste host’s offer to begin';
+    collabConn = new RTCPeerConnection({ iceServers: STUN });
+    collabConn.ondatachannel = (ev) => attachDataChannel(ev.channel);
+    collabConn.onicegatheringstatechange = () => {
+      if (collabConn.iceGatheringState === 'complete' && collabConn.localDescription) {
+        $('#collabAnswerOut').value = compactSdp(collabConn.localDescription);
+        $('#collabStatus').textContent = 'Answer ready — send it back to the host';
+      }
+    };
+    $('#collabDisconnectBtn').hidden = false;
+  }
+
+  async function submitGuestOffer() {
+    if (!collabConn) await startGuest();
+    const raw = $('#collabOfferIn').value.trim();
+    if (!raw) { toast('Paste the host’s offer first', 'error'); return; }
+    let desc;
+    try { desc = expandSdp(raw); }
+    catch { toast('Invalid offer code', 'error'); return; }
+    await collabConn.setRemoteDescription(desc);
+    const answer = await collabConn.createAnswer();
+    await collabConn.setLocalDescription(answer);
+    $('#collabStatus').textContent = 'Gathering ICE candidates…';
+  }
+
+  async function acceptHostAnswer() {
+    if (!collabConn) { toast('Start as host first', 'error'); return; }
+    const raw = $('#collabAnswerIn').value.trim();
+    if (!raw) { toast('Paste the guest’s answer first', 'error'); return; }
+    let desc;
+    try { desc = expandSdp(raw); }
+    catch { toast('Invalid answer code', 'error'); return; }
+    await collabConn.setRemoteDescription(desc);
+    $('#collabStatus').textContent = 'Connecting…';
+  }
+
+  function disconnectCollab() {
+    if (collabChan) {
+      try { collabChan.send(JSON.stringify({ type: 'bye', id: collabRole + '-self' })); } catch {}
+      try { collabChan.close(); } catch {}
+    }
+    if (collabConn) { try { collabConn.close(); } catch {} }
+    collabConn = null; collabChan = null; collabRole = null;
+    Object.keys(peers).forEach((k) => delete peers[k]);
+    renderPeerList();
+    $('#collabHostStep').hidden = true;
+    $('#collabGuestStep').hidden = true;
+    $('#collabStatus').textContent = 'Disconnected';
+    $('#collabDisconnectBtn').hidden = true;
+    refreshPresencePill();
+  }
+
+  $('#collabHostBtn')?.addEventListener('click', () => startHost());
+  $('#collabJoinBtn')?.addEventListener('click', () => startGuest());
+  $('#collabSubmitOfferBtn')?.addEventListener('click', () => submitGuestOffer());
+  $('#collabAcceptAnswerBtn')?.addEventListener('click', () => acceptHostAnswer());
+  $('#collabDisconnectBtn')?.addEventListener('click', () => disconnectCollab());
+  $('#collabCopyOfferBtn')?.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('#collabOfferOut').value); toast('Offer copied', 'success'); }
+    catch { $('#collabOfferOut').select(); document.execCommand('copy'); }
+  });
+  $('#collabCopyAnswerBtn')?.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('#collabAnswerOut').value); toast('Answer copied', 'success'); }
+    catch { $('#collabAnswerOut').select(); document.execCommand('copy'); }
   });
 
   // ============================================================
