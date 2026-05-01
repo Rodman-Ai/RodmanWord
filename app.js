@@ -852,6 +852,18 @@
 
   function openBackstage() {
     backstage.hidden = false;
+    // Route through the new section renderer if it's available (it's
+    // defined later in the IIFE as a function declaration, so it's
+    // hoisted and reachable). Fall back to the legacy switch for
+    // safety if anything has gone wrong.
+    if (typeof renderBackstageSection === 'function' &&
+        typeof BACKSTAGE_SECTIONS !== 'undefined' &&
+        BACKSTAGE_SECTIONS && BACKSTAGE_SECTIONS.home) {
+      renderBackstageSection('home');
+      const s = document.getElementById('backstageSearch');
+      if (s) s.value = '';
+      return;
+    }
     setBackstageView('home');
   }
 
@@ -1212,14 +1224,8 @@
     btn.addEventListener('click', () => renderBackstageSection(btn.dataset.section));
   });
 
-  // The original `openBackstage()` calls setBackstageView('home'); we
-  // route that through the new section renderer instead.
-  openBackstage = function () {
-    backstage.hidden = false;
-    renderBackstageSection('home');
-    const s = $('#backstageSearch');
-    if (s) s.value = '';
-  };
+  // (openBackstage was modified directly above to use the new section
+  // renderer; no reassignment needed here.)
 
   // Backstage search — filters tiles across every section.
   $('#backstageSearch')?.addEventListener('input', (e) => {

@@ -188,10 +188,13 @@ body {
   background: var(--ribbon-bg);
   border-bottom: 1px solid var(--ribbon-border);
   flex-shrink: 0;
-  /* Allow vertical growth instead of horizontal scroll so panels
-     with many groups wrap to a second or third row. */
-  overflow-x: visible;
+  /* Hide horizontal overflow so flex-wrap inside .ribbon-panel
+     reliably wraps groups instead of stretching the ribbon wider
+     than the viewport. */
+  width: 100%;
+  overflow-x: hidden;
   overflow-y: visible;
+  box-sizing: border-box;
 }
 .ribbon.collapsed { display: none; }
 
@@ -202,11 +205,14 @@ body {
   align-content: flex-start;
   row-gap: 4px;
   padding: 6px 8px;
+  /* Explicit width + box-sizing so the panel never grows beyond
+     the ribbon container, which is the trigger for flex-wrap. */
+  width: 100%;
+  box-sizing: border-box;
   min-height: 88px;
-  /* Hard cap at three rows so a giant tab can't push the editor
-     off-screen. Each row is roughly 92 px (group min-height +
-     gap), so 3 × 92 plus a little = ~ 280 px. */
+  /* Hard cap so a giant tab can't push the editor off-screen. */
   max-height: 280px;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 .ribbon-panel.active { display: flex; }
@@ -2510,8 +2516,12 @@ textarea {
   .tab { padding: 8px 14px; font-size: 12px; }
   .ribbon-panel {
     min-height: auto; padding: 6px 4px;
-    /* On phones we already wrap; allow more vertical space so
-       buttons stay reachable. */
+    /* Be explicit on phones: no horizontal scroll, allow wrap, give
+       more vertical space so all groups stay reachable. */
+    flex-wrap: wrap;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
     max-height: 50vh;
   }
   .group { padding: 4px 6px; border-right: 1px solid var(--ribbon-border); min-height: 0; }
