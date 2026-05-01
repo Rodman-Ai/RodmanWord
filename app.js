@@ -824,6 +824,21 @@
         saveDocument();
         closeBackstage();
         break;
+      case 'save-fs':
+        closeBackstage();
+        saveToFileSystem();
+        break;
+      case 'open-fs':
+        closeBackstage();
+        openFromFileSystem();
+        break;
+      case 'cloud-sync':
+        closeBackstage();
+        $('#ghToken').value = localStorage.getItem('rodmanword:ghToken') || '';
+        $('#ghGistId').value = localStorage.getItem('rodmanword:ghGistId') || '';
+        $('#cloudStatus').textContent = '';
+        openModal($('#cloudModal'));
+        break;
       case 'export-html':
         exportHtml();
         closeBackstage();
@@ -2899,6 +2914,178 @@ ${editor.innerHTML}
     if (!$('#grammarPane') || $('#grammarPane').hidden) return;
     clearTimeout(window.__rwdGrT);
     window.__rwdGrT = setTimeout(runGrammar, 800);
+  });
+
+  // ============================================================
+  // FEATURE: Cloud / File System Access (Tier 3, gap #26)
+  // ============================================================
+  let fsHandle = null;
+
+  function buildRwdJson() {
+    return JSON.stringify({
+      version: 1,
+      title: docTitle.value,
+      html: editor.innerHTML,
+      header: docHeader ? docHeader.innerHTML : '',
+      footer: docFooter ? docFooter.innerHTML : '',
+      layout: { size: pageSize.value, orientation: orientation.value, margins: margins.value },
+      properties: docProps || {},
+      threads: typeof threads === 'object' ? threads : {},
+      savedAt: new Date().toISOString(),
+    }, null, 2);
+  }
+
+  function applyRwdJson(data) {
+    if (!data) return;
+    editor.innerHTML = sanitizeImported(data.html || '');
+    docTitle.value = data.title || 'Document';
+    if (docHeader) docHeader.innerHTML = sanitizeImported(data.header || '');
+    if (docFooter) docFooter.innerHTML = sanitizeImported(data.footer || '');
+    if (data.threads && typeof data.threads === 'object') {
+      threads = data.threads;
+      try { localStorage.setItem(STORE_THREADS, JSON.stringify(threads)); } catch {}
+    }
+    if (data.layout) {
+      pageSize.value = data.layout.size || pageSize.value;
+      orientation.value = data.layout.orientation || orientation.value;
+      margins.value = data.layout.margins || margins.value;
+      applyLayout();
+    }
+    queueAutosave();
+    if (typeof rebuildOutline === 'function') rebuildOutline();
+    if (typeof rebuildCommentsPane === 'function') rebuildCommentsPane();
+    refreshFields();
+  }
+
+  async function saveToFileSystem() {
+    if (!('showSaveFilePicker' in window)) {
+      toast('File System Access not available — using download fallback', 'info');
+      saveDocument();
+      return;
+    }
+    try {
+      if (!fsHandle) {
+        fsHandle = await window.showSaveFilePicker({
+          suggestedName: sanitizeFileName(docTitle.value) + '.rwd',
+          types: [{
+            description: 'RodmanWord document',
+            accept: { 'application/json': ['.rwd'] },
+          }],
+        });
+      }
+      const writable = await fsHandle.createWritable();
+      await writable.write(buildRwdJson());
+      await writable.close();
+      toast('Saved to file system', 'success');
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      toast('Save failed: ' + err.message, 'error');
+    }
+  }
+
+  async function openFromFileSystem() {
+    if (!('showOpenFilePicker' in window)) {
+      toast('File System Access not available — using picker fallback', 'info');
+      $('#filePicker').click();
+      return;
+    }
+    try {
+      const [h] = await window.showOpenFilePicker({
+        types: [{
+          description: 'RodmanWord / text formats',
+          accept: { 'application/json': ['.rwd'], 'text/html': ['.html', '.htm'],
+            'text/plain': ['.txt', '.md'] },
+        }],
+      });
+      fsHandle = h;
+      const file = await h.getFile();
+      const text = await file.text();
+      if (file.name.endsWith('.rwd')) {
+        applyRwdJson(JSON.parse(text));
+      } else if (/\.html?$/i.test(file.name)) {
+        editor.innerHTML = sanitizeImported(text);
+        queueAutosave();
+      } else {
+        editor.innerHTML = '<p>' + escapeHtml(text).replace(/\n/g, '</p><p>') + '</p>';
+        queueAutosave();
+      }
+      docTitle.value = file.name.replace(/\.[^.]+$/, '');
+      toast('Opened from file system', 'success');
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      toast('Open failed: ' + err.message, 'error');
+    }
+  }
+
+  // ----- GitHub Gist sync -----
+  async function gistRequest(method, path, token, body) {
+    const headers = {
+      'Accept': 'application/vnd.github+json',
+      'Authorization': 'Bearer ' + token,
+    };
+    if (body) headers['Content-Type'] = 'application/json';
+    const res = await fetch('https://api.github.com' + path, {
+      method, headers, body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(res.status + ' ' + (err || res.statusText));
+    }
+    return res.json();
+  }
+
+  $('#cloudSaveBtn')?.addEventListener('click', async () => {
+    const token = $('#ghToken').value.trim();
+    if (!token) { toast('Token required', 'error'); return; }
+    localStorage.setItem('rodmanword:ghToken', token);
+    const gistId = $('#ghGistId').value.trim();
+    const filename = sanitizeFileName(docTitle.value) + '.rwd';
+    const body = {
+      description: 'RodmanWord — ' + docTitle.value,
+      files: { [filename]: { content: buildRwdJson() } },
+    };
+    $('#cloudStatus').textContent = 'Saving…';
+    try {
+      let json;
+      if (gistId) {
+        json = await gistRequest('PATCH', '/gists/' + gistId, token, body);
+      } else {
+        body.public = false;
+        json = await gistRequest('POST', '/gists', token, body);
+        $('#ghGistId').value = json.id;
+        localStorage.setItem('rodmanword:ghGistId', json.id);
+      }
+      $('#cloudStatus').innerHTML = '✓ Saved gist <a href="' +
+        json.html_url + '" target="_blank" rel="noopener">' +
+        json.id + '</a> at ' + new Date().toLocaleTimeString();
+      toast('Saved to GitHub gist', 'success');
+    } catch (err) {
+      $('#cloudStatus').textContent = '✗ ' + err.message;
+      toast('Gist save failed: ' + err.message, 'error');
+    }
+  });
+
+  $('#cloudLoadBtn')?.addEventListener('click', async () => {
+    const token = $('#ghToken').value.trim();
+    const gistId = $('#ghGistId').value.trim();
+    if (!token || !gistId) { toast('Token and Gist ID required', 'error'); return; }
+    localStorage.setItem('rodmanword:ghToken', token);
+    localStorage.setItem('rodmanword:ghGistId', gistId);
+    $('#cloudStatus').textContent = 'Loading…';
+    try {
+      const json = await gistRequest('GET', '/gists/' + gistId, token);
+      const file = Object.values(json.files || {}).find((f) =>
+        /\.rwd$/i.test(f.filename));
+      if (!file) throw new Error('No .rwd file in this gist');
+      const data = JSON.parse(file.content);
+      applyRwdJson(data);
+      $('#cloudStatus').textContent = '✓ Loaded ' + file.filename +
+        ' (' + (file.size || 0) + ' bytes)';
+      toast('Loaded from gist', 'success');
+    } catch (err) {
+      $('#cloudStatus').textContent = '✗ ' + err.message;
+      toast('Gist load failed: ' + err.message, 'error');
+    }
   });
 
   // ============================================================

@@ -415,6 +415,9 @@
         <li><button data-action="new">New</button></li>
         <li><button data-action="open">Open…</button></li>
         <li><button data-action="save">Save (.rwd)</button></li>
+        <li><button data-action="save-fs">Save to file…</button></li>
+        <li><button data-action="open-fs">Open from file…</button></li>
+        <li><button data-action="cloud-sync">Cloud sync (Gist)…</button></li>
         <li><button data-action="export-docx">Export Word (.docx)</button></li>
         <li><button data-action="export-pdf">Export PDF</button></li>
         <li><button data-action="export-html">Export HTML</button></li>
@@ -679,6 +682,27 @@
         <ul id="stylesList" class="snippet-list"></ul>
       </div>
       <footer><button class="btn primary" data-close-modal>Done</button></footer>
+    </div>
+  </div>
+
+  <!-- Cloud / Gist sync modal -->
+  <div class="modal" id="cloudModal" hidden>
+    <div class="modal-card">
+      <header><h3>Cloud sync via GitHub Gist</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Stores the document as a private GitHub gist. Paste a personal access token with the <code>gist</code> scope. The token is kept only in this browser.</p>
+        <label>GitHub token <input id="ghToken" type="password" placeholder="ghp_…" /></label>
+        <label>Gist ID (leave blank to create a new gist)
+          <input id="ghGistId" type="text" placeholder="abc123…" /></label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn" id="cloudSaveBtn">Save / update gist</button>
+          <button class="btn" id="cloudLoadBtn">Load from gist</button>
+        </div>
+        <p id="cloudStatus" class="muted"></p>
+      </div>
+      <footer><button class="btn primary" data-close-modal>Close</button></footer>
     </div>
   </div>
 
