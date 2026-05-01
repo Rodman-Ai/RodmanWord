@@ -209,6 +209,7 @@
           <button class="ribbon-btn wide" id="citationBtn" title="Insert citation">📎 Cite</button>
           <button class="ribbon-btn wide" id="bibliographyBtn" title="Insert bibliography">📚 Bibliography</button>
           <button class="ribbon-btn wide" id="tabStopBtn" title="Insert tab stop with leader">⇥ Tab stop</button>
+          <button class="ribbon-btn wide" id="chartBtn" title="Insert chart from data">📊 Chart</button>
         </div>
         <div class="group-label">Layout</div>
       </div>
@@ -640,6 +641,37 @@
         <ul id="stylesList" class="snippet-list"></ul>
       </div>
       <footer><button class="btn primary" data-close-modal>Done</button></footer>
+    </div>
+  </div>
+
+  <!-- Chart modal -->
+  <div class="modal" id="chartModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Insert chart</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label>Type
+            <select id="chartType" class="select">
+              <option value="bar">Horizontal bar</option>
+              <option value="column" selected>Vertical column</option>
+              <option value="line">Line</option>
+              <option value="pie">Pie</option>
+            </select>
+          </label>
+          <label>Title <input id="chartTitle" type="text" placeholder="Sales by quarter" /></label>
+        </div>
+        <label>Data (CSV — first column = labels, others = series)
+          <textarea id="chartData" rows="6"
+            placeholder="Quarter,Revenue,Expenses&#10;Q1,120,80&#10;Q2,140,90&#10;Q3,160,100&#10;Q4,200,110"></textarea>
+        </label>
+        <div id="chartPreview" class="equation-preview" style="text-align:center"></div>
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Cancel</button>
+        <button class="btn primary" id="chartInsertBtn">Insert</button>
+      </footer>
     </div>
   </div>
 

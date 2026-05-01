@@ -508,6 +508,19 @@ body {
 }
 .editor p:has(.rwd-tab) { display: flex; flex-wrap: nowrap; }
 
+/* Charts */
+.editor .rwd-chart {
+  display: block;
+  margin: 8px auto;
+  max-width: 100%;
+  cursor: pointer;
+}
+.editor .rwd-chart:hover { outline: 1px dashed var(--primary); }
+.rwd-chart text { font-family: 'Segoe UI', sans-serif; font-size: 11px; fill: var(--text); }
+.rwd-chart .axis { stroke: var(--ribbon-border); }
+.rwd-chart .grid { stroke: var(--ribbon-border); stroke-dasharray: 2,3; opacity: 0.5; }
+.rwd-chart .title { font-size: 13px; font-weight: 600; }
+
 /* Multi-level numbered lists */
 .editor ol.rwd-multi {
   counter-reset: rwd-l1;

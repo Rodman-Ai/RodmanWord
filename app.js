@@ -2690,6 +2690,193 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Insert chart from data (Tier 2, gap #18)
+  // ============================================================
+  const CHART_COLORS = ['#2b579a', '#d23f31', '#ff8f00', '#2e7d32',
+    '#7b1fa2', '#0097a7', '#5d4037', '#455a64'];
+
+  function renderChartSvg(kind, title, csv) {
+    const rows = parseCsv(csv).filter((r) => r.some((c) => (c || '').trim()));
+    if (rows.length < 2) return null;
+    const headers = rows[0];
+    const data = rows.slice(1);
+    const labels = data.map((r) => r[0]);
+    const seriesNames = headers.slice(1);
+    const series = seriesNames.map((_, i) =>
+      data.map((r) => parseFloat(r[i + 1]) || 0));
+
+    const W = 480, H = 280;
+    const PAD_L = 50, PAD_R = 20, PAD_T = title ? 40 : 16, PAD_B = 56;
+    const innerW = W - PAD_L - PAD_R;
+    const innerH = H - PAD_T - PAD_B;
+
+    let svg = '<svg xmlns="http://www.w3.org/2000/svg" class="rwd-chart" ' +
+      'viewBox="0 0 ' + W + ' ' + H + '" width="100%" data-kind="' +
+      escapeHtml(kind) + '" data-csv="' + escapeHtml(csv) +
+      '" data-title="' + escapeHtml(title || '') + '">';
+    if (title) svg += '<text class="title" x="' + (W / 2) +
+      '" y="22" text-anchor="middle">' + escapeHtml(title) + '</text>';
+
+    if (kind === 'pie') {
+      const cx = W / 2, cy = (H + PAD_T) / 2 - 10;
+      const r = Math.min(innerW, innerH) / 2 - 8;
+      const total = series[0].reduce((a, b) => a + b, 0) || 1;
+      let angle = -Math.PI / 2;
+      labels.forEach((lab, i) => {
+        const v = series[0][i];
+        const a2 = angle + (v / total) * 2 * Math.PI;
+        const x1 = cx + r * Math.cos(angle);
+        const y1 = cy + r * Math.sin(angle);
+        const x2 = cx + r * Math.cos(a2);
+        const y2 = cy + r * Math.sin(a2);
+        const large = (a2 - angle) > Math.PI ? 1 : 0;
+        svg += '<path d="M' + cx + ',' + cy + ' L' + x1.toFixed(2) +
+          ',' + y1.toFixed(2) + ' A' + r + ',' + r + ' 0 ' + large +
+          ' 1 ' + x2.toFixed(2) + ',' + y2.toFixed(2) + ' Z" fill="' +
+          CHART_COLORS[i % CHART_COLORS.length] + '"/>';
+        // Label outside
+        const mid = (angle + a2) / 2;
+        const lx = cx + (r + 12) * Math.cos(mid);
+        const ly = cy + (r + 12) * Math.sin(mid);
+        svg += '<text x="' + lx.toFixed(0) + '" y="' + ly.toFixed(0) +
+          '" text-anchor="middle">' + escapeHtml(lab) +
+          ' (' + Math.round((v / total) * 100) + '%)</text>';
+        angle = a2;
+      });
+      svg += '</svg>';
+      return svg;
+    }
+
+    const flat = series.flat();
+    const maxV = Math.max.apply(null, flat.length ? flat : [0, 1]);
+    const minV = Math.min(0, Math.min.apply(null, flat.length ? flat : [0]));
+    const span = (maxV - minV) || 1;
+    function yFor(v) {
+      return PAD_T + innerH * (1 - (v - minV) / span);
+    }
+    // Axes
+    svg += '<line class="axis" x1="' + PAD_L + '" y1="' + yFor(0) +
+      '" x2="' + (W - PAD_R) + '" y2="' + yFor(0) + '"/>';
+    svg += '<line class="axis" x1="' + PAD_L + '" y1="' + PAD_T +
+      '" x2="' + PAD_L + '" y2="' + (H - PAD_B) + '"/>';
+    // Y ticks
+    for (let t = 0; t <= 4; t++) {
+      const v = minV + (span * t) / 4;
+      const y = yFor(v);
+      svg += '<line class="grid" x1="' + PAD_L + '" y1="' + y +
+        '" x2="' + (W - PAD_R) + '" y2="' + y + '"/>';
+      svg += '<text x="' + (PAD_L - 4) + '" y="' + (y + 4) +
+        '" text-anchor="end">' + (Math.round(v * 100) / 100) + '</text>';
+    }
+
+    if (kind === 'bar' || kind === 'column') {
+      const groupW = innerW / labels.length;
+      const barW = groupW / (series.length + 1);
+      labels.forEach((lab, i) => {
+        const groupX = PAD_L + i * groupW + (groupW - barW * series.length) / 2;
+        series.forEach((srs, si) => {
+          const v = srs[i];
+          const yTop = yFor(Math.max(0, v));
+          const yBot = yFor(Math.min(0, v));
+          svg += '<rect x="' + (groupX + si * barW).toFixed(1) +
+            '" y="' + yTop.toFixed(1) + '" width="' + (barW - 2).toFixed(1) +
+            '" height="' + Math.max(1, (yBot - yTop)).toFixed(1) +
+            '" fill="' + CHART_COLORS[si % CHART_COLORS.length] + '"/>';
+        });
+        svg += '<text x="' + (PAD_L + (i + 0.5) * groupW) +
+          '" y="' + (H - PAD_B + 16) + '" text-anchor="middle">' +
+          escapeHtml(lab) + '</text>';
+      });
+    } else if (kind === 'line') {
+      series.forEach((srs, si) => {
+        const pts = srs.map((v, i) =>
+          (PAD_L + (i + 0.5) * (innerW / labels.length)).toFixed(1) +
+          ',' + yFor(v).toFixed(1)).join(' ');
+        svg += '<polyline fill="none" stroke="' +
+          CHART_COLORS[si % CHART_COLORS.length] +
+          '" stroke-width="2" points="' + pts + '"/>';
+        srs.forEach((v, i) => {
+          const cx = PAD_L + (i + 0.5) * (innerW / labels.length);
+          svg += '<circle cx="' + cx.toFixed(1) + '" cy="' +
+            yFor(v).toFixed(1) + '" r="3" fill="' +
+            CHART_COLORS[si % CHART_COLORS.length] + '"/>';
+        });
+      });
+      labels.forEach((lab, i) => {
+        const cx = PAD_L + (i + 0.5) * (innerW / labels.length);
+        svg += '<text x="' + cx + '" y="' + (H - PAD_B + 16) +
+          '" text-anchor="middle">' + escapeHtml(lab) + '</text>';
+      });
+    }
+
+    // Legend
+    seriesNames.forEach((name, i) => {
+      const y = H - 20;
+      const x = PAD_L + i * 100;
+      svg += '<rect x="' + x + '" y="' + (y - 8) + '" width="10" height="10" fill="' +
+        CHART_COLORS[i % CHART_COLORS.length] + '"/>';
+      svg += '<text x="' + (x + 14) + '" y="' + y + '">' +
+        escapeHtml(name) + '</text>';
+    });
+    svg += '</svg>';
+    return svg;
+  }
+
+  let editingChart = null;
+  function refreshChartPreview() {
+    const kind = $('#chartType').value;
+    const title = $('#chartTitle').value;
+    const csv = $('#chartData').value;
+    const svg = renderChartSvg(kind, title, csv);
+    $('#chartPreview').innerHTML = svg ||
+      '<span class="muted">Preview will appear here</span>';
+  }
+
+  ['chartType', 'chartTitle', 'chartData'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('input', refreshChartPreview);
+    document.getElementById(id)?.addEventListener('change', refreshChartPreview);
+  });
+
+  $('#chartBtn')?.addEventListener('click', () => {
+    editingChart = null;
+    saveSelection();
+    $('#chartType').value = 'column';
+    $('#chartTitle').value = '';
+    $('#chartData').value = '';
+    refreshChartPreview();
+    openModal($('#chartModal'));
+  });
+
+  $('#chartInsertBtn')?.addEventListener('click', () => {
+    const svg = renderChartSvg(
+      $('#chartType').value, $('#chartTitle').value, $('#chartData').value
+    );
+    if (!svg) { toast('Add at least one row of data', 'error'); return; }
+    if (editingChart) {
+      editingChart.outerHTML = svg;
+      editingChart = null;
+    } else {
+      restoreSelection();
+      document.execCommand('insertHTML', false, svg + '<p><br/></p>');
+    }
+    closeModal($('#chartModal'));
+    queueAutosave();
+  });
+
+  // Click an existing chart to re-edit
+  editor.addEventListener('click', (e) => {
+    const svg = e.target.closest && e.target.closest('svg.rwd-chart');
+    if (!svg) return;
+    e.preventDefault();
+    editingChart = svg;
+    $('#chartType').value = svg.dataset.kind || 'column';
+    $('#chartTitle').value = svg.dataset.title || '';
+    $('#chartData').value = svg.dataset.csv || '';
+    refreshChartPreview();
+    openModal($('#chartModal'));
+  });
+
+  // ============================================================
   // FEATURE: Tab stops with leaders (Tier 2, gap #15)
   // ============================================================
   const LEADER_CHARS = {
