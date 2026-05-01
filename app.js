@@ -2690,6 +2690,192 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Track changes (Tier 1, gap #2)
+  // ============================================================
+  const trackChangesToggle = $('#trackChangesToggle');
+  let trackChanges = false;
+
+  trackChangesToggle?.addEventListener('change', () => {
+    trackChanges = trackChangesToggle.checked;
+    if (trackChanges) {
+      $('#reviewPane').hidden = false;
+      rebuildReviewPane();
+      toast('Track changes ON — edits are marked instead of applied directly', 'info');
+    } else {
+      $('#reviewPane').hidden = true;
+    }
+  });
+
+  // beforeinput interception: when track changes is on, we substitute
+  // most edits with marked-up versions.
+  editor.addEventListener('beforeinput', (e) => {
+    if (!trackChanges) return;
+    const t = e.inputType;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+
+    // Insertion of text
+    if (t === 'insertText' && e.data) {
+      e.preventDefault();
+      // If selection is non-empty, treat as a delete-then-insert
+      if (!range.collapsed) wrapDelete(range);
+      const ins = document.createElement('ins');
+      ins.className = 'rwd-ins';
+      ins.dataset.author = currentAuthor();
+      ins.dataset.at = new Date().toISOString();
+      ins.textContent = e.data;
+      range.insertNode(ins);
+      // Caret after the inserted text
+      const r2 = document.createRange();
+      r2.setStartAfter(ins);
+      r2.setEndAfter(ins);
+      sel.removeAllRanges();
+      sel.addRange(r2);
+      saveSelection();
+      queueAutosave();
+      rebuildReviewPane();
+      return;
+    }
+    if (t === 'insertParagraph' || t === 'insertLineBreak') {
+      // Let the browser do its thing for now
+      return;
+    }
+    // Deletions
+    if (t === 'deleteContentBackward' || t === 'deleteContentForward' ||
+        t === 'deleteWordBackward' || t === 'deleteWordForward' ||
+        t === 'deleteByCut') {
+      if (range.collapsed) {
+        // Expand by one char/word in the right direction
+        try {
+          if (t.indexOf('Backward') > 0) {
+            range.setStart(range.startContainer,
+              Math.max(0, range.startOffset - 1));
+          } else {
+            range.setEnd(range.endContainer,
+              Math.min(range.endContainer.length || range.endContainer.childNodes.length,
+                       range.endOffset + 1));
+          }
+        } catch {}
+      }
+      e.preventDefault();
+      wrapDelete(range);
+      saveSelection();
+      queueAutosave();
+      rebuildReviewPane();
+    }
+  });
+
+  function wrapDelete(range) {
+    // If the range is inside an existing <ins>, just remove it (the
+    // edit hasn't been accepted yet, so deleting it is a clean undo).
+    const within = range.commonAncestorContainer;
+    let parentIns = (within.nodeType === 1 ? within : within.parentElement)
+      ?.closest && (within.nodeType === 1 ? within : within.parentElement).closest('ins.rwd-ins');
+    if (parentIns) {
+      const r = range.cloneRange();
+      r.deleteContents();
+      if (!parentIns.textContent) parentIns.remove();
+      return;
+    }
+    // Otherwise, wrap the range in <del>.
+    const frag = range.extractContents();
+    const del = document.createElement('del');
+    del.className = 'rwd-del';
+    del.dataset.author = currentAuthor();
+    del.dataset.at = new Date().toISOString();
+    del.appendChild(frag);
+    range.insertNode(del);
+    // Caret after the del
+    const r2 = document.createRange();
+    r2.setStartAfter(del);
+    r2.setEndAfter(del);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r2);
+  }
+
+  function acceptChange(el) {
+    if (el.tagName === 'INS') {
+      // Replace ins with its children
+      const parent = el.parentNode;
+      while (el.firstChild) parent.insertBefore(el.firstChild, el);
+      parent.removeChild(el);
+    } else if (el.tagName === 'DEL') {
+      el.remove();
+    }
+  }
+  function rejectChange(el) {
+    if (el.tagName === 'INS') {
+      el.remove();
+    } else if (el.tagName === 'DEL') {
+      const parent = el.parentNode;
+      while (el.firstChild) parent.insertBefore(el.firstChild, el);
+      parent.removeChild(el);
+    }
+  }
+
+  $('#acceptAllBtn')?.addEventListener('click', () => {
+    editor.querySelectorAll('ins.rwd-ins, del.rwd-del').forEach(acceptChange);
+    rebuildReviewPane();
+    queueAutosave();
+  });
+  $('#rejectAllBtn')?.addEventListener('click', () => {
+    editor.querySelectorAll('ins.rwd-ins, del.rwd-del').forEach(rejectChange);
+    rebuildReviewPane();
+    queueAutosave();
+  });
+  $('#reviewCloseBtn')?.addEventListener('click', () => {
+    $('#reviewPane').hidden = true;
+    if (trackChangesToggle) trackChangesToggle.checked = false;
+    trackChanges = false;
+  });
+
+  function rebuildReviewPane() {
+    const pane = $('#reviewPane');
+    if (!pane || pane.hidden) return;
+    const list = $('#reviewList');
+    list.innerHTML = '';
+    const changes = editor.querySelectorAll('ins.rwd-ins, del.rwd-del');
+    $('#reviewCount').textContent = changes.length + ' change' +
+      (changes.length === 1 ? '' : 's');
+    if (!changes.length) {
+      list.innerHTML = '<li class="empty">No tracked changes.</li>';
+      return;
+    }
+    changes.forEach((el, i) => {
+      const li = document.createElement('li');
+      const kind = el.tagName === 'INS' ? 'Insertion' : 'Deletion';
+      const author = el.dataset.author || 'Unknown';
+      const text = el.textContent.slice(0, 80);
+      li.innerHTML =
+        '<div class="selection-preview">' + kind + ' by ' +
+          escapeHtml(author) + '</div>' +
+        '<div class="last-reply">' + escapeHtml(text) + '</div>' +
+        '<div style="margin-top:6px;display:flex;gap:6px">' +
+          '<button class="btn" data-act="accept">Accept</button>' +
+          '<button class="btn" data-act="reject">Reject</button>' +
+        '</div>';
+      li.querySelector('[data-act="accept"]').addEventListener('click', (e) => {
+        e.stopPropagation();
+        acceptChange(el);
+        rebuildReviewPane();
+        queueAutosave();
+      });
+      li.querySelector('[data-act="reject"]').addEventListener('click', (e) => {
+        e.stopPropagation();
+        rejectChange(el);
+        rebuildReviewPane();
+        queueAutosave();
+      });
+      li.addEventListener('click', () => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      list.appendChild(li);
+    });
+  }
+
+  // ============================================================
   // FEATURE: Section breaks (Tier 1, gap #4)
   // ============================================================
   // A section break is an HR-like element that splits the document

@@ -327,6 +327,10 @@
             <span>Comments</span>
           </label>
           <label class="control switch">
+            <input type="checkbox" id="trackChangesToggle" />
+            <span>Track changes</span>
+          </label>
+          <label class="control switch">
             <input type="checkbox" id="spellToggle" checked />
             <span>Spell check</span>
           </label>
@@ -571,6 +575,20 @@
       <footer><button class="btn primary" data-close-modal>Got it</button></footer>
     </div>
   </div>
+
+  <!-- Review panel (track changes) -->
+  <aside class="comments-pane" id="reviewPane" hidden style="top: 380px">
+    <header>
+      <span>Track changes</span>
+      <span id="reviewCount" class="muted" style="margin-left:auto;font-size:11px"></span>
+      <button class="icon-btn" id="reviewCloseBtn" aria-label="Close">✕</button>
+    </header>
+    <div class="comments-filter" style="display:flex;gap:6px">
+      <button class="btn" id="acceptAllBtn">Accept all</button>
+      <button class="btn" id="rejectAllBtn">Reject all</button>
+    </div>
+    <ol id="reviewList"></ol>
+  </aside>
 
   <!-- Custom styles modal -->
   <div class="modal" id="stylesModal" hidden>

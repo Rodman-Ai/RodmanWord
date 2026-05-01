@@ -473,6 +473,21 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Track changes */
+.editor ins.rwd-ins {
+  background: rgba(76, 175, 80, 0.15);
+  color: #1b5e20;
+  text-decoration: underline;
+  text-decoration-color: rgba(76, 175, 80, 0.7);
+}
+.editor del.rwd-del {
+  background: rgba(244, 67, 54, 0.12);
+  color: #b71c1c;
+  text-decoration: line-through;
+}
+[data-theme='dark'] .editor ins.rwd-ins { color: #a5d6a7; }
+[data-theme='dark'] .editor del.rwd-del { color: #ef9a9a; }
+
 /* Section breaks */
 .editor .rwd-section-break {
   display: block;
