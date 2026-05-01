@@ -188,18 +188,29 @@ body {
   background: var(--ribbon-bg);
   border-bottom: 1px solid var(--ribbon-border);
   flex-shrink: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  /* Allow vertical growth instead of horizontal scroll so panels
+     with many groups wrap to a second or third row. */
+  overflow-x: visible;
+  overflow-y: visible;
 }
 .ribbon.collapsed { display: none; }
 
 .ribbon-panel {
   display: none;
-  align-items: stretch;
+  flex-wrap: wrap;             /* wrap groups onto extra rows */
+  align-items: flex-start;
+  align-content: flex-start;
+  row-gap: 4px;
   padding: 6px 8px;
   min-height: 88px;
+  /* Hard cap at three rows so a giant tab can't push the editor
+     off-screen. Each row is roughly 92 px (group min-height +
+     gap), so 3 × 92 plus a little = ~ 280 px. */
+  max-height: 280px;
+  overflow-y: auto;
 }
 .ribbon-panel.active { display: flex; }
+.group { min-height: 84px; }
 
 .group {
   display: flex;
@@ -2497,8 +2508,13 @@ textarea {
   .app-subtitle { display: none; }
   .doc-title { max-width: 50vw; font-size: 13px; }
   .tab { padding: 8px 14px; font-size: 12px; }
-  .ribbon-panel { min-height: auto; padding: 6px 4px; }
-  .group { padding: 4px 6px; border-right: 1px solid var(--ribbon-border); }
+  .ribbon-panel {
+    min-height: auto; padding: 6px 4px;
+    /* On phones we already wrap; allow more vertical space so
+       buttons stay reachable. */
+    max-height: 50vh;
+  }
+  .group { padding: 4px 6px; border-right: 1px solid var(--ribbon-border); min-height: 0; }
   .group-label { display: none; }
   .ribbon-btn { height: 36px; min-width: 36px; padding: 4px 6px; }
   .select { height: 32px; min-width: 80px; font-size: 12px; }
