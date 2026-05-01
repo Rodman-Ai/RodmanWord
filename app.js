@@ -2902,6 +2902,117 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Macros — record and replay (Tier 3, gap #30)
+  // ============================================================
+  const STORE_MACROS = 'rodmanword:macros';
+  let macros = {};
+  try { macros = JSON.parse(localStorage.getItem(STORE_MACROS) || '{}'); } catch {}
+  let recording = false;
+  let currentMacro = [];
+
+  $('#recordMacroToggle')?.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      currentMacro = [];
+      recording = true;
+      toast('Recording macro — perform actions, then untick to save', 'info');
+    } else {
+      recording = false;
+      if (!currentMacro.length) {
+        toast('Nothing recorded', 'info');
+        return;
+      }
+      const name = prompt('Save macro as:', 'Macro ' +
+        (Object.keys(macros).length + 1));
+      if (!name) return;
+      macros[name] = currentMacro;
+      try { localStorage.setItem(STORE_MACROS, JSON.stringify(macros)); } catch {}
+      toast('Macro "' + name + '" saved with ' + currentMacro.length + ' steps', 'success');
+    }
+  });
+
+  // Wrap exec() once more to record formatting commands
+  const __recExec = exec;
+  exec = function (cmd, value) {
+    if (recording) currentMacro.push({ kind: 'exec', cmd, value });
+    return __recExec(cmd, value);
+  };
+
+  // Record clicks on every Insert and Home button (skip the Macro and
+  // Record toggles themselves)
+  document.body.addEventListener('click', (e) => {
+    if (!recording) return;
+    const btn = e.target.closest('.ribbon-btn');
+    if (!btn) return;
+    if (['recordMacroToggle', 'runMacroBtn'].includes(btn.id)) return;
+    if (btn.id) currentMacro.push({ kind: 'click', id: btn.id });
+  });
+
+  // Record typed text (insertText only, not formatting)
+  editor.addEventListener('beforeinput', (e) => {
+    if (!recording) return;
+    if (e.inputType === 'insertText' && e.data) {
+      currentMacro.push({ kind: 'type', text: e.data });
+    }
+  }, true);
+
+  $('#runMacroBtn')?.addEventListener('click', () => {
+    const ul = $('#macrosList');
+    ul.innerHTML = '';
+    const names = Object.keys(macros);
+    if (!names.length) {
+      ul.innerHTML = '<li class="empty">No macros saved yet.</li>';
+    } else {
+      names.forEach((name) => {
+        const li = document.createElement('li');
+        li.innerHTML =
+          '<span class="name">' + escapeHtml(name) +
+          ' <small style="color:var(--muted)">' +
+          macros[name].length + ' steps</small></span>' +
+          '<span class="actions">' +
+            '<button data-act="run">Run</button>' +
+            '<button data-act="delete">Delete</button>' +
+          '</span>';
+        li.querySelector('[data-act="run"]').addEventListener('click', () => {
+          closeModal($('#macrosModal'));
+          replayMacro(macros[name]);
+        });
+        li.querySelector('[data-act="delete"]').addEventListener('click', () => {
+          delete macros[name];
+          try { localStorage.setItem(STORE_MACROS, JSON.stringify(macros)); } catch {}
+          $('#runMacroBtn').click();
+        });
+        ul.appendChild(li);
+      });
+    }
+    openModal($('#macrosModal'));
+  });
+
+  function replayMacro(steps) {
+    let i = 0;
+    const tick = () => {
+      if (i >= steps.length) {
+        toast('Macro complete', 'success');
+        return;
+      }
+      const s = steps[i++];
+      try {
+        if (s.kind === 'exec') exec(s.cmd, s.value);
+        else if (s.kind === 'click') {
+          const btn = document.getElementById(s.id);
+          if (btn) btn.click();
+        } else if (s.kind === 'type') {
+          editor.focus();
+          document.execCommand('insertText', false, s.text);
+        }
+      } catch {}
+      setTimeout(tick, 80);
+    };
+    editor.focus();
+    saveSelection();
+    tick();
+  }
+
+  // ============================================================
   // FEATURE: Translate (Tier 3, gap #28)
   // ============================================================
   $('#trOpenBtn')?.addEventListener('click', () => {

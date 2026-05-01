@@ -372,6 +372,11 @@
             <span>Smart Compose</span>
           </label>
           <label class="control switch">
+            <input type="checkbox" id="recordMacroToggle" />
+            <span>Record macro</span>
+          </label>
+          <button class="ribbon-btn wide" id="runMacroBtn" title="Run saved macro">▶ Macros…</button>
+          <label class="control switch">
             <input type="checkbox" id="spellToggle" checked />
             <span>Spell check</span>
           </label>
@@ -674,6 +679,20 @@
         <ul id="stylesList" class="snippet-list"></ul>
       </div>
       <footer><button class="btn primary" data-close-modal>Done</button></footer>
+    </div>
+  </div>
+
+  <!-- Macros modal -->
+  <div class="modal" id="macrosModal" hidden>
+    <div class="modal-card">
+      <header><h3>Macros</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Run a saved macro to replay its recorded commands.</p>
+        <ul id="macrosList" class="snippet-list"></ul>
+      </div>
+      <footer><button class="btn primary" data-close-modal>Close</button></footer>
     </div>
   </div>
 
