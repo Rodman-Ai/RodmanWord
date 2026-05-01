@@ -2690,6 +2690,26 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Tab stops with leaders (Tier 2, gap #15)
+  // ============================================================
+  const LEADER_CHARS = {
+    none: '',
+    dots: '. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .',
+    underline: '____________________________________________________',
+    dashes: '- - - - - - - - - - - - - - - - - - - - - - - - - - - - -',
+  };
+  $('#tabStopBtn')?.addEventListener('click', () => {
+    const kind = prompt('Leader: none, dots, underline, dashes', 'dots');
+    if (!kind || !(kind in LEADER_CHARS)) return;
+    const leader = LEADER_CHARS[kind];
+    const html = '<span class="rwd-tab" contenteditable="false">' +
+      '<span class="rwd-leader">' + leader + '</span></span>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // ============================================================
   // FEATURE: Line / paragraph spacing controls (Tier 2, gap #14)
   // ============================================================
   function affectedBlocks() {
