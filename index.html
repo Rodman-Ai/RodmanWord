@@ -317,8 +317,34 @@
               <option value="3">3</option>
             </select>
           </label>
+          <label class="control switch">
+            <input type="checkbox" id="lineNumbersToggle" />
+            <span>Line numbers</span>
+          </label>
+          <label class="control switch">
+            <input type="checkbox" id="hyphenationToggle" />
+            <span>Hyphenation</span>
+          </label>
+          <label class="control switch">
+            <input type="checkbox" id="widowOrphanToggle" checked />
+            <span>Widow/orphan</span>
+          </label>
         </div>
         <div class="group-label">Page setup</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
+          <select class="select sm" id="headingNumScheme" title="Heading numbering scheme">
+            <option value="">Heading №…</option>
+            <option value="off">No numbering</option>
+            <option value="1.1.1">1.1.1</option>
+            <option value="I.A.1">I.A.1</option>
+            <option value="A.1.a">A.1.a</option>
+            <option value="1)">1)</option>
+          </select>
+          <button class="ribbon-btn" id="restartNumberingBtn" title="Restart numbering here">↻ Restart</button>
+        </div>
+        <div class="group-label">Numbering</div>
       </div>
     </div>
 
@@ -530,6 +556,8 @@
         <li><button data-action="compare">Compare…</button></li>
         <li><button data-action="encrypt">Save encrypted</button></li>
         <li><button data-action="customcss">Custom CSS</button></li>
+        <li><button data-action="themes">Document themes</button></li>
+        <li><button data-action="stylesio">Styles import/export</button></li>
         <li><button data-action="translate">Translate…</button></li>
         <li><button data-action="about">About</button></li>
       </ul>
@@ -778,6 +806,51 @@
         <ul id="stylesList" class="snippet-list"></ul>
       </div>
       <footer><button class="btn primary" data-close-modal>Done</button></footer>
+    </div>
+  </div>
+
+  <!-- Document Themes modal -->
+  <div class="modal" id="themesModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Document themes</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Pick a theme — a coordinated font and color scheme applied across the document.</p>
+        <div id="themesGrid" class="template-grid"></div>
+        <hr/>
+        <p><b>Custom theme</b></p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label>Body font <input id="themeBodyFont" type="text" placeholder="Calibri, Arial, sans-serif" /></label>
+          <label>Heading font <input id="themeHeadingFont" type="text" placeholder="Segoe UI, sans-serif" /></label>
+          <label>Accent 1 <input id="themeAccent1" type="color" value="#2b579a" /></label>
+          <label>Accent 2 <input id="themeAccent2" type="color" value="#d23f31" /></label>
+          <label>Accent 3 <input id="themeAccent3" type="color" value="#ff8f00" /></label>
+          <label>Accent 4 <input id="themeAccent4" type="color" value="#2e7d32" /></label>
+        </div>
+        <button class="btn" id="applyCustomThemeBtn">Apply custom theme</button>
+      </div>
+      <footer><button class="btn primary" data-close-modal>Done</button></footer>
+    </div>
+  </div>
+
+  <!-- Styles import/export modal -->
+  <div class="modal" id="stylesIOModal" hidden>
+    <div class="modal-card">
+      <header><h3>Styles import / export</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Copy this JSON to share styles with another document, or paste a previously-saved JSON to import.</p>
+        <label>Styles JSON
+          <textarea id="stylesIOJson" rows="8" spellcheck="false"></textarea>
+        </label>
+        <div style="display:flex;gap:6px">
+          <button class="btn" id="exportStylesBtn">Export current</button>
+          <button class="btn primary" id="importStylesBtn">Import</button>
+        </div>
+      </div>
+      <footer><button class="btn" data-close-modal>Close</button></footer>
     </div>
   </div>
 

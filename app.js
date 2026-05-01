@@ -2930,6 +2930,233 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section B — Document model & styles depth (#11–#20)
+  // ============================================================
+  const STORE_THEME = 'rodmanword:theme';
+  const STORE_AUTHORS = 'rodmanword:authors';
+
+  // --- #11 Document themes -----------------------------------
+  const THEMES = [
+    { name: 'Office',   body: 'Calibri, Arial, sans-serif',           heading: '"Segoe UI", system-ui, sans-serif',     a1: '#2b579a', a2: '#d23f31', a3: '#ff8f00', a4: '#2e7d32' },
+    { name: 'Modern',   body: '"Inter", "Segoe UI", sans-serif',      heading: '"Inter", "Segoe UI", sans-serif',       a1: '#1976d2', a2: '#7b1fa2', a3: '#0097a7', a4: '#c62828' },
+    { name: 'Editorial', body: 'Georgia, "Times New Roman", serif',    heading: '"Playfair Display", Georgia, serif',    a1: '#5d4037', a2: '#8d6e63', a3: '#a1887f', a4: '#3e2723' },
+    { name: 'Mono',     body: '"Courier New", Courier, monospace',    heading: '"Courier New", monospace',              a1: '#222',    a2: '#666',    a3: '#999',    a4: '#000' },
+    { name: 'Soft',     body: '"Trebuchet MS", sans-serif',           heading: '"Trebuchet MS", sans-serif',            a1: '#6a4f8a', a2: '#d97a76', a3: '#e6b86d', a4: '#7fa37b' },
+    { name: 'Tech',     body: '"Helvetica Neue", Helvetica, sans-serif', heading: '"Helvetica Neue", sans-serif',     a1: '#0f172a', a2: '#0ea5e9', a3: '#22c55e', a4: '#f97316' },
+  ];
+
+  function applyTheme(t) {
+    if (!t) return;
+    document.body.classList.add('themed');
+    const r = document.documentElement.style;
+    r.setProperty('--theme-body-font', t.body);
+    r.setProperty('--theme-heading-font', t.heading);
+    r.setProperty('--theme-accent-1', t.a1);
+    r.setProperty('--theme-accent-2', t.a2);
+    r.setProperty('--theme-accent-3', t.a3);
+    r.setProperty('--theme-accent-4', t.a4);
+    try { localStorage.setItem(STORE_THEME, JSON.stringify(t)); } catch {}
+  }
+  function loadStoredTheme() {
+    try {
+      const t = JSON.parse(localStorage.getItem(STORE_THEME) || 'null');
+      if (t) applyTheme(t);
+    } catch {}
+  }
+  loadStoredTheme();
+
+  function renderThemesGrid() {
+    const grid = $('#themesGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    THEMES.forEach((t) => {
+      const c = document.createElement('div');
+      c.className = 'template-card';
+      c.innerHTML =
+        '<div class="thumb" style="font-family:' + t.body +
+          ';color:' + t.a1 + ';background:linear-gradient(160deg,#fff 60%,' + t.a1 + '12 100%)">' +
+          '<b style="font-family:' + t.heading + ';color:' + t.a1 + '">' + t.name + '</b>' +
+          '<div class="bar" style="background:' + t.a1 + '"></div>' +
+          '<div class="bar short" style="background:' + t.a2 + '"></div>' +
+          '<div class="bar" style="background:' + t.a3 + '"></div>' +
+        '</div>' +
+        '<div class="name">' + t.name + '</div>' +
+        '<div class="desc">' + t.body.split(',')[0].replace(/"/g,'') + '</div>';
+      c.addEventListener('click', () => applyTheme(t));
+      grid.appendChild(c);
+    });
+  }
+
+  $('#applyCustomThemeBtn')?.addEventListener('click', () => {
+    applyTheme({
+      name: 'Custom',
+      body: $('#themeBodyFont').value || 'Calibri, sans-serif',
+      heading: $('#themeHeadingFont').value || '"Segoe UI", sans-serif',
+      a1: $('#themeAccent1').value, a2: $('#themeAccent2').value,
+      a3: $('#themeAccent3').value, a4: $('#themeAccent4').value,
+    });
+    toast('Custom theme applied', 'success');
+  });
+
+  // --- #12 Theme-aware swatch additions ---------------------
+  // Inject the four theme accents at the top of every color popup
+  // by wrapping the existing openColorPopup if it exists.
+  if (typeof openColorPopup === 'function' && !openColorPopup.__themed) {
+    const __origOpen = openColorPopup;
+    openColorPopup = function (anchor, applyFn) {
+      __origOpen.call(this, anchor, applyFn);
+      const pop = activeColorPopup;
+      if (!pop) return;
+      const accents = [
+        getComputedStyle(document.documentElement).getPropertyValue('--theme-accent-1').trim() || '#2b579a',
+        getComputedStyle(document.documentElement).getPropertyValue('--theme-accent-2').trim() || '#d23f31',
+        getComputedStyle(document.documentElement).getPropertyValue('--theme-accent-3').trim() || '#ff8f00',
+        getComputedStyle(document.documentElement).getPropertyValue('--theme-accent-4').trim() || '#2e7d32',
+      ];
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.textContent = 'Theme';
+      pop.insertBefore(row, pop.firstChild);
+      accents.reverse().forEach((c) => {
+        const s = document.createElement('div');
+        s.className = 'swatch';
+        s.style.background = c;
+        s.title = 'Theme color ' + c;
+        s.addEventListener('mousedown', (ev) => {
+          ev.preventDefault();
+          applyFn(c);
+          pop.remove();
+          activeColorPopup = null;
+        });
+        pop.insertBefore(s, pop.firstChild);
+      });
+    };
+    openColorPopup.__themed = true;
+  }
+
+  // --- #13 Style hierarchy / inheritance --------------------
+  // Add a 'parent' picker to the styles modal — when applying a
+  // child style, also stamp the parent's class so its CSS cascades.
+  function applyCustomStylesheetHierarchical() {
+    let style = document.getElementById('rwd-custom-styles');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'rwd-custom-styles';
+      document.head.appendChild(style);
+    }
+    let css = '';
+    Object.keys(customStyles).forEach((name) => {
+      const s = customStyles[name];
+      if (s.parent && customStyles[s.parent]) {
+        css += '.editor .' + styleClassName(name) + ' { ' +
+          customStyles[s.parent].css + ' ' + s.css + ' }\n';
+      } else {
+        css += '.editor .' + styleClassName(name) + ' { ' + s.css + ' }\n';
+      }
+    });
+    style.textContent = css;
+    refreshCustomStylesDropdown();
+    refreshStylesList();
+  }
+  // Replace the existing applier so the manage-styles save path picks
+  // up parent inheritance.
+  applyCustomStylesheet = applyCustomStylesheetHierarchical;
+
+  // --- #14 Styles import / export ---------------------------
+  $('#exportStylesBtn')?.addEventListener('click', () => {
+    $('#stylesIOJson').value = JSON.stringify(customStyles, null, 2);
+  });
+  $('#importStylesBtn')?.addEventListener('click', () => {
+    let parsed;
+    try { parsed = JSON.parse($('#stylesIOJson').value); }
+    catch (e) { toast('Invalid JSON: ' + e.message, 'error'); return; }
+    Object.assign(customStyles, parsed);
+    persistStyles();
+    applyCustomStylesheet();
+    toast('Imported ' + Object.keys(parsed).length + ' styles', 'success');
+  });
+
+  // --- #15 Heading numbering schemes ------------------------
+  $('#headingNumScheme')?.addEventListener('change', (e) => {
+    const v = e.target.value;
+    e.target.value = '';
+    editor.classList.remove('numscheme-1-1-1','numscheme-I-A-1','numscheme-A-1-a','numscheme-1-paren');
+    if (v === '1.1.1') editor.classList.add('numscheme-1-1-1');
+    else if (v === 'I.A.1') editor.classList.add('numscheme-I-A-1');
+    else if (v === 'A.1.a') editor.classList.add('numscheme-A-1-a');
+    else if (v === '1)') editor.classList.add('numscheme-1-paren');
+    queueAutosave();
+  });
+
+  // --- #16 Restart numbering at this heading ---------------
+  $('#restartNumberingBtn')?.addEventListener('click', () => {
+    const sel = window.getSelection();
+    let n = sel && sel.anchorNode;
+    if (n && n.nodeType !== 1) n = n.parentElement;
+    const h = n && n.closest && n.closest('h1,h2,h3');
+    if (!h) { toast('Place the cursor in a heading', 'info'); return; }
+    const lvl = h.tagName.charAt(1);
+    h.classList.remove('rwd-restart-1','rwd-restart-2','rwd-restart-3');
+    h.classList.add('rwd-restart-' + lvl);
+    queueAutosave();
+    toast('Numbering restarts here', 'success');
+  });
+
+  // --- #17 Line numbers in margin --------------------------
+  $('#lineNumbersToggle')?.addEventListener('change', (e) => {
+    editor.classList.toggle('line-numbers', e.target.checked);
+  });
+
+  // --- #18 Hyphenation control ----------------------------
+  $('#hyphenationToggle')?.addEventListener('change', (e) => {
+    editor.classList.toggle('hyphenated', e.target.checked);
+    editor.classList.toggle('no-hyphens', !e.target.checked);
+  });
+
+  // --- #19 Widow/orphan + keep-with-next ------------------
+  $('#widowOrphanToggle')?.addEventListener('change', (e) => {
+    editor.classList.toggle('widow-orphan', e.target.checked);
+  });
+  // Apply widow-orphan by default
+  editor.classList.add('widow-orphan');
+
+  // --- #20 Multi-author metadata --------------------------
+  let authorsList = [];
+  try { authorsList = JSON.parse(localStorage.getItem(STORE_AUTHORS) || '[]'); } catch {}
+  function persistAuthors() {
+    try { localStorage.setItem(STORE_AUTHORS, JSON.stringify(authorsList)); } catch {}
+  }
+  // Override the older single-author currentAuthor() to consult the list
+  if (typeof currentAuthor === 'function') {
+    const __origAuthor = currentAuthor;
+    currentAuthor = function () {
+      if (authorsList.length) {
+        return authorsList[0].name;
+      }
+      return __origAuthor();
+    };
+  }
+
+  // Backstage actions for #11, #14
+  setBackstageView = (function (orig) {
+    return function (action) {
+      if (action === 'themes') {
+        closeBackstage();
+        renderThemesGrid();
+        openModal($('#themesModal'));
+        return;
+      }
+      if (action === 'stylesio') {
+        closeBackstage();
+        $('#stylesIOJson').value = '';
+        openModal($('#stylesIOModal'));
+        return;
+      }
+      return orig(action);
+    };
+  })(setBackstageView);
+
+  // ============================================================
   // FEATURE: Review tab — restructure + 9 review-depth items
   // (100-feature-plan items #1 — #10)
   // ============================================================

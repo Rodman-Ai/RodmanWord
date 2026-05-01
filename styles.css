@@ -499,6 +499,88 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Document themes — applied via root variables */
+:root {
+  --theme-body-font: Calibri, Arial, sans-serif;
+  --theme-heading-font: 'Segoe UI', system-ui, sans-serif;
+  --theme-accent-1: #2b579a;
+  --theme-accent-2: #d23f31;
+  --theme-accent-3: #ff8f00;
+  --theme-accent-4: #2e7d32;
+}
+body.themed .editor { font-family: var(--theme-body-font); }
+body.themed .editor :where(h1,h2,h3,h4) {
+  font-family: var(--theme-heading-font);
+  color: var(--theme-accent-1);
+}
+
+/* Line numbers in margin */
+.editor.line-numbers > * {
+  counter-increment: rwd-line;
+  position: relative;
+}
+.editor.line-numbers {
+  counter-reset: rwd-line;
+  padding-left: 3em;
+}
+.editor.line-numbers > *::before {
+  content: counter(rwd-line);
+  position: absolute;
+  left: -2.5em;
+  width: 2em;
+  text-align: right;
+  color: var(--muted);
+  font-size: 0.85em;
+  font-family: 'Courier New', monospace;
+  user-select: none;
+}
+
+/* Hyphenation */
+.editor.hyphenated { hyphens: auto; -webkit-hyphens: auto; -ms-hyphens: auto; }
+.editor.no-hyphens { hyphens: manual; }
+
+/* Widow/orphan + keep-with */
+.editor.widow-orphan p,
+.editor.widow-orphan li {
+  widows: 2;
+  orphans: 2;
+}
+.editor .keep-with-next { break-after: avoid-page; page-break-after: avoid; }
+.editor .keep-together { break-inside: avoid; page-break-inside: avoid; }
+
+/* Heading numbering schemes via CSS counters */
+.editor.numscheme-1-1-1 { counter-reset: rwd-h1 0; }
+.editor.numscheme-1-1-1 h1 { counter-increment: rwd-h1; counter-reset: rwd-h2 0; }
+.editor.numscheme-1-1-1 h2 { counter-increment: rwd-h2; counter-reset: rwd-h3 0; }
+.editor.numscheme-1-1-1 h3 { counter-increment: rwd-h3; }
+.editor.numscheme-1-1-1 h1::before { content: counter(rwd-h1) "  "; color: var(--theme-accent-1); }
+.editor.numscheme-1-1-1 h2::before { content: counter(rwd-h1) "." counter(rwd-h2) "  "; color: var(--theme-accent-1); }
+.editor.numscheme-1-1-1 h3::before { content: counter(rwd-h1) "." counter(rwd-h2) "." counter(rwd-h3) "  "; color: var(--theme-accent-1); }
+
+.editor.numscheme-I-A-1 { counter-reset: rwd-h1 0; }
+.editor.numscheme-I-A-1 h1 { counter-increment: rwd-h1; counter-reset: rwd-h2 0; }
+.editor.numscheme-I-A-1 h2 { counter-increment: rwd-h2; counter-reset: rwd-h3 0; }
+.editor.numscheme-I-A-1 h3 { counter-increment: rwd-h3; }
+.editor.numscheme-I-A-1 h1::before { content: counter(rwd-h1, upper-roman) ".  "; color: var(--theme-accent-1); }
+.editor.numscheme-I-A-1 h2::before { content: counter(rwd-h2, upper-alpha) ".  "; color: var(--theme-accent-1); }
+.editor.numscheme-I-A-1 h3::before { content: counter(rwd-h3) ".  "; color: var(--theme-accent-1); }
+
+.editor.numscheme-A-1-a { counter-reset: rwd-h1 0; }
+.editor.numscheme-A-1-a h1 { counter-increment: rwd-h1; counter-reset: rwd-h2 0; }
+.editor.numscheme-A-1-a h2 { counter-increment: rwd-h2; counter-reset: rwd-h3 0; }
+.editor.numscheme-A-1-a h3 { counter-increment: rwd-h3; }
+.editor.numscheme-A-1-a h1::before { content: counter(rwd-h1, upper-alpha) ".  "; color: var(--theme-accent-1); }
+.editor.numscheme-A-1-a h2::before { content: counter(rwd-h2) ".  "; color: var(--theme-accent-1); }
+.editor.numscheme-A-1-a h3::before { content: counter(rwd-h3, lower-alpha) ".  "; color: var(--theme-accent-1); }
+
+.editor.numscheme-1-paren { counter-reset: rwd-h1 0; }
+.editor.numscheme-1-paren h1 { counter-increment: rwd-h1; }
+.editor.numscheme-1-paren h1::before { content: counter(rwd-h1) ")  "; color: var(--theme-accent-1); }
+
+.editor h1.rwd-restart-1,
+.editor h2.rwd-restart-2,
+.editor h3.rwd-restart-3 { counter-set: rwd-h1 0 rwd-h2 0 rwd-h3 0; }
+
 /* Mark-final banner */
 .final-banner {
   position: fixed;
