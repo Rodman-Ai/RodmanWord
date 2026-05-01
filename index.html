@@ -133,17 +133,21 @@
             <option value="✓">✓</option>
             <option value="custom">Custom…</option>
           </select>
-          <button class="ribbon-btn" id="collapseToLevelBtn" title="Collapse all to level…">⇕ Level</button>
+          <button class="ribbon-btn" id="collapseToLevelBtn" title="Collapse outline to level N">⇕ Lvl</button>
+        </div>
+        <div class="group-label">Lists</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" data-cmd="justifyLeft" title="Align left (Ctrl+L)">⯇</button>
+          <button class="ribbon-btn" data-cmd="justifyCenter" title="Center (Ctrl+E)">⯀</button>
+          <button class="ribbon-btn" data-cmd="justifyRight" title="Align right (Ctrl+R)">⯈</button>
+          <button class="ribbon-btn" data-cmd="justifyFull" title="Justify (Ctrl+J)">≡</button>
           <button class="ribbon-btn" data-cmd="outdent" title="Decrease indent">⇤</button>
           <button class="ribbon-btn" data-cmd="indent" title="Increase indent">⇥</button>
-        </div>
-        <div class="group-row">
-          <button class="ribbon-btn" data-cmd="justifyLeft" title="Align left">⯇</button>
-          <button class="ribbon-btn" data-cmd="justifyCenter" title="Center">⯀</button>
-          <button class="ribbon-btn" data-cmd="justifyRight" title="Align right">⯈</button>
-          <button class="ribbon-btn" data-cmd="justifyFull" title="Justify">≡</button>
           <select class="select sm" id="lineSpacing" title="Line spacing" aria-label="Line spacing">
-            <option value="">Spacing</option>
+            <option value="">Line</option>
             <option value="1">1.0</option>
             <option value="1.15">1.15</option>
             <option value="1.5">1.5</option>
@@ -153,7 +157,7 @@
           </select>
           <select class="select sm" id="paraSpacing" title="Paragraph spacing" aria-label="Paragraph spacing">
             <option value="">¶ ↕</option>
-            <option value="0">No space</option>
+            <option value="0">None</option>
             <option value="0.4">Compact</option>
             <option value="0.8">Default</option>
             <option value="1.2">Loose</option>
@@ -423,6 +427,11 @@
               <option value="3">3</option>
             </select>
           </label>
+        </div>
+        <div class="group-label">Page setup</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
           <label class="control switch">
             <input type="checkbox" id="lineNumbersToggle" />
             <span>Line numbers</span>
@@ -436,7 +445,7 @@
             <span>Widow/orphan</span>
           </label>
         </div>
-        <div class="group-label">Page setup</div>
+        <div class="group-label">Flow</div>
       </div>
       <div class="group">
         <div class="group-row">
@@ -467,10 +476,12 @@
       <div class="group">
         <div class="group-row">
           <button class="ribbon-btn" id="reviewNewCommentBtn" title="New comment">💬 New</button>
-          <button class="ribbon-btn" id="reviewToggleCommentsBtn" title="Show comments pane">▣ Pane</button>
+          <button class="ribbon-btn" id="reviewToggleCommentsBtn" title="Toggle comments pane">▣ Pane</button>
+          <button class="ribbon-btn" id="reviewResolveBtn" title="Resolve / unresolve current thread">✓ Resolve</button>
+        </div>
+        <div class="group-row">
           <button class="ribbon-btn" id="reviewPrevCommentBtn" title="Previous comment">◀</button>
           <button class="ribbon-btn" id="reviewNextCommentBtn" title="Next comment">▶</button>
-          <button class="ribbon-btn" id="reviewResolveBtn" title="Resolve / unresolve">✓</button>
         </div>
         <div class="group-label">Comments</div>
       </div>
@@ -496,12 +507,14 @@
       </div>
       <div class="group">
         <div class="group-row">
-          <button class="ribbon-btn" id="reviewPrevChangeBtn" title="Previous change">◀ Prev</button>
-          <button class="ribbon-btn" id="reviewNextChangeBtn" title="Next change">Next ▶</button>
+          <button class="ribbon-btn" id="reviewPrevChangeBtn" title="Previous change">◀</button>
+          <button class="ribbon-btn" id="reviewNextChangeBtn" title="Next change">▶</button>
           <button class="ribbon-btn" id="reviewAcceptBtn" title="Accept current change">✔ Accept</button>
           <button class="ribbon-btn" id="reviewRejectBtn" title="Reject current change">✘ Reject</button>
-          <button class="ribbon-btn" id="reviewAcceptAllBtn" title="Accept all">✔✔ All</button>
-          <button class="ribbon-btn" id="reviewRejectAllBtn" title="Reject all">✘✘ All</button>
+        </div>
+        <div class="group-row">
+          <button class="ribbon-btn" id="reviewAcceptAllBtn" title="Accept every change">✔✔ Accept all</button>
+          <button class="ribbon-btn" id="reviewRejectAllBtn" title="Reject every change">✘✘ Reject all</button>
         </div>
         <div class="group-label">Changes</div>
       </div>
@@ -551,14 +564,19 @@
     <div class="ribbon-panel" data-panel="view">
       <div class="group">
         <div class="group-row">
-          <label class="control">
-            Zoom
-            <input type="range" id="zoom" min="50" max="200" value="100" />
-            <span id="zoomLabel">100%</span>
-          </label>
+          <button class="ribbon-btn" id="zoomOutBtn" title="Zoom out">−</button>
+          <input type="range" id="zoom" min="50" max="200" value="100" style="width:120px" />
+          <button class="ribbon-btn" id="zoomInBtn" title="Zoom in">+</button>
+          <span id="zoomLabel" style="font-size:11px;color:var(--muted);min-width:38px;text-align:right">100%</span>
+        </div>
+        <div class="group-row">
+          <button class="ribbon-btn" id="zoomFitWidthBtn" title="Fit width">↔ Fit</button>
+          <button class="ribbon-btn" id="zoomFitPageBtn" title="Fit page">▭ Page</button>
+          <button class="ribbon-btn" id="zoom100Btn" title="100%">100%</button>
         </div>
         <div class="group-label">Zoom</div>
       </div>
+
       <div class="group">
         <div class="group-row">
           <label class="control">
@@ -570,6 +588,16 @@
               <option value="contrast">High contrast</option>
             </select>
           </label>
+          <label class="control switch" style="display:none">
+            <input type="checkbox" id="darkMode" />
+            <span>Dark mode</span>
+          </label>
+        </div>
+        <div class="group-label">Theme</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
           <label class="control switch">
             <input type="checkbox" id="rulerToggle" checked />
             <span>Ruler</span>
@@ -583,59 +611,80 @@
             <span>Comments</span>
           </label>
           <label class="control switch">
-            <input type="checkbox" id="trackChangesToggle" />
-            <span>Track changes</span>
-          </label>
-          <label class="control switch">
-            <input type="checkbox" id="restrictEditToggle" />
-            <span>Restrict editing</span>
-          </label>
-          <label class="control switch">
             <input type="checkbox" id="grammarToggle" />
-            <span>Grammar</span>
+            <span>Grammar pane</span>
+          </label>
+        </div>
+        <div class="group-label">Show</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="focusBtn2" title="Focus mode (F11)">⛶ Focus</button>
+          <button class="ribbon-btn" id="readingModeBtn" title="Read-only reading view">📖 Read</button>
+          <button class="ribbon-btn" id="fullscreenEditorBtn" title="Full-screen editor">⛶ Full</button>
+          <div class="rwd-menu-host">
+            <button class="ribbon-btn" id="moreModesBtn" title="More view modes">More ▾</button>
+            <div class="rwd-menu" id="moreModes">
+              <button id="outlineEditBtn">≡↕ Outline edit</button>
+              <button id="twoPageBtn">▮▮ Two-page spread</button>
+              <button id="sxsReadingBtn">⇉ Side-by-side reading</button>
+              <button id="mobilePreviewBtn">📱 Mobile preview</button>
+              <button id="readingDyslexiaBtn">🧠 Dyslexia preset</button>
+            </div>
+          </div>
+        </div>
+        <div class="group-label">Modes</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="readAloudBtn" title="Read aloud (text-to-speech)">🔊 Aloud</button>
+        </div>
+        <div class="group-label">Read</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <label class="control switch">
+            <input type="checkbox" id="spellToggle" checked />
+            <span>Spell check</span>
+          </label>
+          <label class="control switch">
+            <input type="checkbox" id="autoCorrectToggle" />
+            <span>Auto-correct</span>
           </label>
           <label class="control switch">
             <input type="checkbox" id="smartComposeToggle" />
             <span>Smart Compose</span>
           </label>
+        </div>
+        <div class="group-label">Writing aids</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
           <label class="control switch">
             <input type="checkbox" id="recordMacroToggle" />
-            <span>Record macro</span>
+            <span>Record</span>
           </label>
-          <button class="ribbon-btn wide" id="runMacroBtn" title="Run saved macro">▶ Macros…</button>
-          <label class="control switch">
-            <input type="checkbox" id="spellToggle" checked />
-            <span>Spell check</span>
-          </label>
-          <label class="control switch" style="display:none">
-            <input type="checkbox" id="darkMode" />
-            <span>Dark mode</span>
-          </label>
+          <button class="ribbon-btn" id="runMacroBtn" title="Run saved macro">▶ Run…</button>
         </div>
-        <div class="group-label">Display</div>
+        <div class="group-label">Macros</div>
       </div>
-      <div class="group">
-        <div class="group-row">
-          <button class="ribbon-btn wide" id="focusBtn2" title="Focus mode (F11)">⛶ Focus</button>
-          <button class="ribbon-btn wide" id="readingModeBtn" title="Read-only reading view">📖 Read</button>
-          <button class="ribbon-btn wide" id="readAloudBtn" title="Read aloud (text-to-speech)">🔊 Read aloud</button>
-          <button class="ribbon-btn wide" id="outlineEditBtn" title="Outline view (drag to reorder)">≡↕ Outline edit</button>
-          <button class="ribbon-btn wide" id="twoPageBtn" title="Two-page spread">▮▮ 2-page</button>
-          <button class="ribbon-btn wide" id="sxsReadingBtn" title="Side-by-side reading">⇉ SxS read</button>
-          <button class="ribbon-btn wide" id="mobilePreviewBtn" title="Mobile preview">📱 Mobile</button>
-          <button class="ribbon-btn wide" id="fullscreenEditorBtn" title="Full-screen editor">⛶ Full-screen</button>
-          <button class="ribbon-btn wide" id="readingDyslexiaBtn" title="Dyslexia preset for reading mode">🧠 Dyslexia preset</button>
-        </div>
-        <div class="group-label">Mode</div>
-      </div>
+
       <div class="group">
         <div class="group-row">
           <label class="control switch">
-            <input type="checkbox" id="autoCorrectToggle" />
-            <span>Auto-correct</span>
+            <input type="checkbox" id="trackChangesToggle" />
+            <span>Track changes</span>
+          </label>
+          <label class="control switch">
+            <input type="checkbox" id="restrictEditToggle" />
+            <span>Restrict</span>
           </label>
         </div>
-        <div class="group-label">Assist</div>
+        <div class="group-label">Markup</div>
       </div>
     </div>
   </section>

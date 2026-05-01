@@ -441,11 +441,44 @@
   // ---------- View ----------
   const zoom = $('#zoom');
   const zoomLabel = $('#zoomLabel');
-  zoom.addEventListener('input', () => {
-    const z = parseInt(zoom.value, 10) / 100;
-    page.style.setProperty('--zoom', z);
-    zoomLabel.textContent = zoom.value + '%';
+  function applyZoom(pct) {
+    pct = Math.max(50, Math.min(200, Math.round(pct)));
+    zoom.value = String(pct);
+    page.style.setProperty('--zoom', pct / 100);
+    zoomLabel.textContent = pct + '%';
     savePrefs();
+  }
+  zoom.addEventListener('input', () => applyZoom(parseInt(zoom.value, 10)));
+  $('#zoomInBtn')?.addEventListener('click', () => applyZoom(parseInt(zoom.value, 10) + 10));
+  $('#zoomOutBtn')?.addEventListener('click', () => applyZoom(parseInt(zoom.value, 10) - 10));
+  $('#zoom100Btn')?.addEventListener('click', () => applyZoom(100));
+  $('#zoomFitWidthBtn')?.addEventListener('click', () => {
+    const ws = document.querySelector('.workspace-main');
+    if (!ws) return;
+    // Page CSS width is in inches; resolve to px from current bounding box
+    const pageCss = getComputedStyle(page);
+    const pageW = parseFloat(pageCss.getPropertyValue('--page-width')) * 96 ||
+      page.getBoundingClientRect().width / (parseFloat(zoom.value) / 100);
+    if (!pageW) return;
+    const target = ws.clientWidth - 48;
+    applyZoom((target / pageW) * 100);
+  });
+  $('#zoomFitPageBtn')?.addEventListener('click', () => {
+    const ws = document.querySelector('.workspace-main');
+    if (!ws) return;
+    const r = page.getBoundingClientRect();
+    const pageW = r.width / (parseFloat(zoom.value) / 100);
+    const pageH = r.height / (parseFloat(zoom.value) / 100);
+    const sx = (ws.clientWidth - 48) / pageW;
+    const sy = (ws.clientHeight - 48) / pageH;
+    applyZoom(Math.min(sx, sy) * 100);
+  });
+  // Ctrl+/Cmd+ +/- for zoom
+  document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (e.key === '=' || e.key === '+') { e.preventDefault(); applyZoom(parseInt(zoom.value, 10) + 10); }
+    else if (e.key === '-' || e.key === '_') { e.preventDefault(); applyZoom(parseInt(zoom.value, 10) - 10); }
+    else if (e.key === '0') { e.preventDefault(); applyZoom(100); }
   });
 
   const darkMode = $('#darkMode');
