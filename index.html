@@ -202,6 +202,14 @@
       </div>
       <div class="group">
         <div class="group-row">
+          <button class="ribbon-btn wide" id="insertHeaderBtn" title="Edit page header">▔ Header</button>
+          <button class="ribbon-btn wide" id="insertFooterBtn" title="Edit page footer">▁ Footer</button>
+          <button class="ribbon-btn wide" id="insertPageNumBtn" title="Insert page number field">№ Page number</button>
+        </div>
+        <div class="group-label">Header &amp; Footer</div>
+      </div>
+      <div class="group">
+        <div class="group-row">
           <button class="ribbon-btn wide" id="commentBtn" title="Add comment to selection">💬 Comment</button>
           <button class="ribbon-btn wide" id="quickPartsBtn" title="Insert saved snippet">⚡ Quick parts</button>
           <select class="select" id="changeCase" title="Change case" aria-label="Change case">
@@ -371,6 +379,14 @@
       <div class="ruler" id="ruler" aria-hidden="true"></div>
       <div class="page-wrap" id="pageWrap">
         <div class="page a4 portrait margins-normal" id="page">
+          <div
+            id="docHeader"
+            class="page-header"
+            contenteditable="true"
+            spellcheck="true"
+            aria-label="Document header"
+            data-placeholder="Header (click to edit)"
+          ></div>
           <article
             id="editor"
             class="editor"
@@ -388,6 +404,14 @@
   <li>Press <b>?</b> for the full keyboard-shortcut list.</li>
 </ul>
 <p>Your work is auto-saved to this browser as you type.</p></article>
+          <div
+            id="docFooter"
+            class="page-footer"
+            contenteditable="true"
+            spellcheck="true"
+            aria-label="Document footer"
+            data-placeholder="Footer (click to edit)"
+          ></div>
         </div>
       </div>
     </div>

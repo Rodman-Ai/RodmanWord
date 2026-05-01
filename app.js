@@ -15,8 +15,13 @@
 
   const STORE_KEY = 'rodmanword:doc';
   const STORE_TITLE = 'rodmanword:title';
+  const STORE_HEADER = 'rodmanword:header';
+  const STORE_FOOTER = 'rodmanword:footer';
   const STORE_PREFS = 'rodmanword:prefs';
   const STORE_RECENT = 'rodmanword:recent';
+
+  const docHeader = document.getElementById('docHeader');
+  const docFooter = document.getElementById('docFooter');
 
   // ---------- Tabs ----------
   $$('.tab').forEach((tab) => {
@@ -500,6 +505,8 @@
       try {
         localStorage.setItem(STORE_KEY, editor.innerHTML);
         localStorage.setItem(STORE_TITLE, docTitle.value);
+        if (docHeader) localStorage.setItem(STORE_HEADER, docHeader.innerHTML);
+        if (docFooter) localStorage.setItem(STORE_FOOTER, docFooter.innerHTML);
         statusSaved.textContent = 'Saved';
         if (typeof markClean === 'function') markClean();
       } catch {
@@ -538,6 +545,14 @@
   editor.addEventListener('input', markDirty);
   docTitle.addEventListener('input', queueAutosave);
   docTitle.addEventListener('input', markDirty);
+  if (docHeader) {
+    docHeader.addEventListener('input', queueAutosave);
+    docHeader.addEventListener('input', markDirty);
+  }
+  if (docFooter) {
+    docFooter.addEventListener('input', queueAutosave);
+    docFooter.addEventListener('input', markDirty);
+  }
   refreshEmptyState();
 
   // beforeunload warning
@@ -915,6 +930,8 @@
       version: 1,
       title: docTitle.value,
       html: editor.innerHTML,
+      header: docHeader ? docHeader.innerHTML : '',
+      footer: docFooter ? docFooter.innerHTML : '',
       layout: {
         size: pageSize.value,
         orientation: orientation.value,
@@ -964,7 +981,11 @@ ${editor.innerHTML}
       return;
     }
     try {
-      const blob = window.RodmanDocx.saveDocx(editor.innerHTML, docTitle.value);
+      const blob = window.RodmanDocx.saveDocx(editor.innerHTML, {
+        title: docTitle.value,
+        header: getHeaderHtml(),
+        footer: getFooterHtml(),
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1001,6 +1022,8 @@ ${editor.innerHTML}
         pageH: land ? sz.w : sz.h,
         margin: marginsMap[margins.value] || 72,
         title: docTitle.value,
+        header: getHeaderHtml(),
+        footer: getFooterHtml(),
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1060,6 +1083,8 @@ ${editor.innerHTML}
       if (!data) return;
       editor.innerHTML = sanitizeImported(data.html || '');
       docTitle.value = data.title || file.name.replace(/\.rwd\.enc$/i, '');
+      if (docHeader) docHeader.innerHTML = sanitizeImported(data.header || '');
+      if (docFooter) docFooter.innerHTML = sanitizeImported(data.footer || '');
       if (data.layout) {
         pageSize.value = data.layout.size || pageSize.value;
         orientation.value = data.layout.orientation || orientation.value;
@@ -1116,6 +1141,8 @@ ${editor.innerHTML}
           const data = JSON.parse(content);
           editor.innerHTML = sanitizeImported(data.html || '');
           docTitle.value = data.title || file.name.replace(/\.rwd$/, '');
+          if (docHeader) docHeader.innerHTML = sanitizeImported(data.header || '');
+          if (docFooter) docFooter.innerHTML = sanitizeImported(data.footer || '');
           if (data.layout) {
             pageSize.value = data.layout.size || pageSize.value;
             orientation.value = data.layout.orientation || orientation.value;
@@ -1471,8 +1498,12 @@ ${editor.innerHTML}
   function restoreFromStorage() {
     const html = localStorage.getItem(STORE_KEY);
     const title = localStorage.getItem(STORE_TITLE);
+    const header = localStorage.getItem(STORE_HEADER);
+    const footer = localStorage.getItem(STORE_FOOTER);
     if (html) editor.innerHTML = html;
     if (title) docTitle.value = title;
+    if (header && docHeader) docHeader.innerHTML = header;
+    if (footer && docFooter) docFooter.innerHTML = footer;
   }
 
   // ---------- Init ----------
@@ -1778,6 +1809,8 @@ ${editor.innerHTML}
       version: 1,
       title: docTitle.value,
       html: editor.innerHTML,
+      header: docHeader ? docHeader.innerHTML : '',
+      footer: docFooter ? docFooter.innerHTML : '',
       layout: { size: pageSize.value, orientation: orientation.value, margins: margins.value },
       properties: docProps || {},
       savedAt: new Date().toISOString(),
@@ -2104,6 +2137,61 @@ ${editor.innerHTML}
     $('#mergeStatus').textContent = 'Generated ' + data.length + ' documents (' + headers.length + ' fields).';
     toast('Mail merge: ' + data.length + ' documents created', 'success');
   });
+
+  // ============================================================
+  // FEATURE: Headers & footers (page-level)
+  // ============================================================
+  function focusEnd(el) {
+    if (!el) return;
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  $('#insertHeaderBtn')?.addEventListener('click', () => focusEnd(docHeader));
+  $('#insertFooterBtn')?.addEventListener('click', () => focusEnd(docFooter));
+
+  // Page-number field: a span that picks up its number from the print
+  // stylesheet's CSS counters. In screen view it just shows "1".
+  $('#insertPageNumBtn')?.addEventListener('click', () => {
+    // If the cursor is in the header/footer, insert there. Otherwise,
+    // tell the user where it makes sense.
+    const sel = window.getSelection();
+    let target = null;
+    if (sel && sel.anchorNode) {
+      if (docHeader && docHeader.contains(sel.anchorNode)) target = docHeader;
+      else if (docFooter && docFooter.contains(sel.anchorNode)) target = docFooter;
+    }
+    if (!target) {
+      toast('Click in the header or footer first', 'info');
+      focusEnd(docFooter);
+      return;
+    }
+    const span = '<span class="rwd-pagenum" data-field="page" contenteditable="false"></span>';
+    document.execCommand('insertHTML', false, span);
+    queueAutosave();
+  });
+
+  // Helpers used by exporters
+  function getHeaderHtml() { return docHeader ? docHeader.innerHTML : ''; }
+  function getFooterHtml() { return docFooter ? docFooter.innerHTML : ''; }
+  function getHeaderText() { return docHeader ? (docHeader.innerText || '') : ''; }
+  function getFooterText() { return docFooter ? (docFooter.innerText || '') : ''; }
+
+  // Replace {page} / page-number markers with literal placeholders for print
+  function footerForPrint() {
+    if (!docFooter) return '';
+    // Clone, replace .rwd-pagenum with the CSS counter() string
+    const clone = docFooter.cloneNode(true);
+    clone.querySelectorAll('.rwd-pagenum').forEach((s) => {
+      s.outerHTML = '" counter(page) "';
+    });
+    return clone.textContent;
+  }
 
   // ============================================================
   // FEATURE: Bookmarks (named anchors + jump menu)
@@ -2450,20 +2538,55 @@ ${editor.innerHTML}
   function preparePrint() {
     const pageEl = document.getElementById('page');
     if (!pageEl) return;
-    pageEl.dataset.printTitle = docTitle.value || 'Document';
-    pageEl.dataset.printDate = new Date().toLocaleDateString();
-    // Inject a temporary @page style with concrete strings (some browsers don't read attr() in @page)
+    const titleStr = (docTitle.value || 'Document').replace(/"/g, '\\"');
+    const dateStr = new Date().toLocaleDateString().replace(/"/g, '\\"');
+    pageEl.dataset.printTitle = titleStr;
+    pageEl.dataset.printDate = dateStr;
+
+    const headerText = getHeaderText().trim();
+    const footerHasFields = docFooter && docFooter.querySelector('.rwd-pagenum');
+
+    // Build @bottom-center / @top-center contributions from the
+    // user-edited header and footer; fall back to title + page numbers.
     const old = document.getElementById('rwd-print-style');
     if (old) old.remove();
     const style = document.createElement('style');
     style.id = 'rwd-print-style';
-    style.textContent = '@page { @top-center { content: "' +
-      String(pageEl.dataset.printTitle).replace(/"/g, '\\"') +
-      '"; font-family: sans-serif; font-size: 9pt; color: #666; } ' +
+
+    // The footer can include a page-number field; for that we need to
+    // emit `counter(page)` in the content string (not the literal text).
+    let bottomCenter;
+    if (footerHasFields || (docFooter && docFooter.innerText.trim())) {
+      const clone = docFooter.cloneNode(true);
+      // Replace any .rwd-pagenum with a literal marker we can swap into a content string
+      clone.querySelectorAll('.rwd-pagenum').forEach((s) => {
+        s.replaceWith('PAGE');
+      });
+      const raw = clone.textContent;
+      // Build content fragments split by the marker so we can interleave
+      // counter(page) between them.
+      const parts = raw.split('PAGE');
+      const fragments = [];
+      parts.forEach((p, i) => {
+        if (p) fragments.push('"' + p.replace(/"/g, '\\"') + '"');
+        if (i < parts.length - 1) fragments.push('counter(page)');
+      });
+      bottomCenter = fragments.join(' ');
+    } else {
+      bottomCenter = '"' + titleStr + '"';
+    }
+
+    let topCenter = '"' + titleStr + '"';
+    if (headerText) topCenter = '"' + headerText.replace(/"/g, '\\"') + '"';
+
+    style.textContent = '@page { ' +
+      '@top-center { content: ' + topCenter +
+      '; font-family: sans-serif; font-size: 9pt; color: #666; } ' +
+      '@bottom-center { content: ' + bottomCenter +
+      '; font-family: sans-serif; font-size: 9pt; color: #666; } ' +
       '@bottom-right { content: counter(page) " / " counter(pages); font-family: sans-serif; font-size: 9pt; color: #666; } ' +
-      '@bottom-left { content: "' +
-      String(pageEl.dataset.printDate).replace(/"/g, '\\"') +
-      '"; font-family: sans-serif; font-size: 9pt; color: #666; } }';
+      '@bottom-left { content: "' + dateStr + '"; font-family: sans-serif; font-size: 9pt; color: #666; } ' +
+      '}';
     document.head.appendChild(style);
   }
 

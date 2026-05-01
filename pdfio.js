@@ -399,6 +399,56 @@
     if (cur.hasText || cur.ops.length) flushPage();
     if (!pages.length) flushPage();
 
+    // Render header/footer on every page
+    if (opts.headerText || opts.footerSegments) {
+      const total = pages.length;
+      pages.forEach((p, idx) => {
+        const headerOps = [];
+        const footerOps = [];
+        const pageNo = idx + 1;
+        if (opts.headerText) {
+          headerOps.push('BT');
+          headerOps.push('/F3 9 Tf');
+          headerOps.push('1 0 0 1 ' + MARGIN.toFixed(2) + ' ' +
+            (PAGE_H - MARGIN / 2).toFixed(2) + ' Tm');
+          headerOps.push('(' + escapePdf(opts.headerText) + ') Tj');
+          headerOps.push('ET');
+          // Thin separator under header
+          headerOps.push('q 0.3 w ' + MARGIN.toFixed(2) + ' ' +
+            (PAGE_H - MARGIN / 2 - 4).toFixed(2) + ' m ' +
+            (PAGE_W - MARGIN).toFixed(2) + ' ' +
+            (PAGE_H - MARGIN / 2 - 4).toFixed(2) + ' l S Q');
+        }
+        if (opts.footerSegments && opts.footerSegments.length) {
+          // Compose the footer text by joining segments with current page
+          let footerText = '';
+          opts.footerSegments.forEach((seg) => {
+            if (seg.type === 'text') footerText += seg.value;
+            else if (seg.type === 'page') footerText += String(pageNo);
+            else if (seg.type === 'pages') footerText += String(total);
+          });
+          // Append default page indicator if no field was used
+          if (!opts.footerSegments.some((s) => s.type === 'page')) {
+            footerText += '   ' + pageNo + ' / ' + total;
+          }
+          footerOps.push('q 0.3 w ' + MARGIN.toFixed(2) + ' ' +
+            (MARGIN / 2 + 12).toFixed(2) + ' m ' +
+            (PAGE_W - MARGIN).toFixed(2) + ' ' +
+            (MARGIN / 2 + 12).toFixed(2) + ' l S Q');
+          footerOps.push('BT');
+          footerOps.push('/F3 9 Tf');
+          footerOps.push('1 0 0 1 ' + MARGIN.toFixed(2) + ' ' +
+            (MARGIN / 2).toFixed(2) + ' Tm');
+          footerOps.push('(' + escapePdf(footerText) + ') Tj');
+          footerOps.push('ET');
+        }
+        if (headerOps.length || footerOps.length) {
+          p.ops = headerOps.concat(p.ops, footerOps);
+          p.hasText = true;
+        }
+      });
+    }
+
     return assemblePdf(pages, opts);
   }
 
@@ -517,15 +567,44 @@
     return bytes;
   }
 
+  // Convert header / footer HTML to a plain text representation that the
+  // PDF layer can render. Footer can include {page} / {pages} placeholders
+  // (or .rwd-pagenum spans, replaced by {page} here).
+  function partTextFromHtml(html) {
+    if (!html) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    tmp.querySelectorAll('.rwd-pagenum').forEach((el) => el.replaceWith('{page}'));
+    return toLatin1((tmp.innerText || '').replace(/\s+/g, ' ').trim());
+  }
+  function footerSegmentsFromText(text) {
+    if (!text) return null;
+    const segs = [];
+    const re = /\{page\}|\{pages\}/g;
+    let last = 0, m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) segs.push({ type: 'text', value: text.slice(last, m.index) });
+      segs.push({ type: m[0] === '{page}' ? 'page' : 'pages' });
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) segs.push({ type: 'text', value: text.slice(last) });
+    return segs;
+  }
+
   function savePdf(html, opts) {
     opts = opts || {};
     const pageW = opts.pageW != null ? opts.pageW : 612;   // Letter default
     const pageH = opts.pageH != null ? opts.pageH : 792;
     const margin = opts.margin != null ? opts.margin : 72; // 1 inch
+    const headerText = opts.header ? partTextFromHtml(opts.header) : '';
+    const footerText = opts.footer ? partTextFromHtml(opts.footer) : '';
+    const footerSegments = footerSegmentsFromText(footerText);
     const blocks = htmlToBlocks(html);
     const bytes = buildPdf(blocks, {
       pageW, pageH, margin,
       title: opts.title || 'Document',
+      headerText,
+      footerSegments,
     });
     return new Blob([bytes], { type: 'application/pdf' });
   }

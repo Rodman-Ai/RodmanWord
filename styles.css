@@ -696,6 +696,58 @@ body {
   font-style: italic;
 }
 
+/* Page header / footer */
+.page-header,
+.page-footer {
+  outline: none;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 9pt;
+  color: var(--muted);
+  border-bottom: 1px dashed transparent;
+  padding: 4px 0;
+  min-height: 1.6em;
+  margin-bottom: 0.4em;
+}
+.page-footer {
+  border-bottom: none;
+  border-top: 1px dashed transparent;
+  margin-top: 0.4em;
+  margin-bottom: 0;
+}
+.page-header:empty::before,
+.page-header.is-empty::before,
+.page-footer:empty::before,
+.page-footer.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  opacity: 0.5;
+  font-style: italic;
+  pointer-events: none;
+}
+.page-header:focus,
+.page-footer:focus,
+.page-header:hover,
+.page-footer:hover {
+  border-color: var(--ribbon-border);
+}
+.page-footer { display: flex; align-items: center; }
+.page-footer .rwd-pagenum::after {
+  content: "1";
+  color: var(--text);
+}
+
+/* Hide header/footer in focus + reading modes */
+.focus-mode .page-header,
+.focus-mode .page-footer,
+.reading-mode .page-header,
+.reading-mode .page-footer { display: none !important; }
+
+/* In print they're hidden inline (we render them via @page) */
+@media print {
+  .page-header,
+  .page-footer { display: none !important; }
+}
+
 /* Status bar */
 .status-bar {
   background: var(--status-bg);

@@ -398,10 +398,68 @@
   }
 
   // ---------- Build the .docx package ----------
-  function buildDocx(html, title) {
+  // Build a mini WordML body from a header/footer HTML fragment, with the
+  // .rwd-pagenum span replaced by a real <w:fldSimple> PAGE field. Returns
+  // a string containing one or more <w:p>...</w:p> paragraphs.
+  function buildPartBody(html) {
+    if (!html || !html.trim()) {
+      return '<w:p><w:r><w:t xml:space="preserve"></w:t></w:r></w:p>';
+    }
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
-    const { documentXml, rels } = htmlToWordML(tmp);
+    // Swap each .rwd-pagenum with a literal token we'll convert to PAGE field
+    tmp.querySelectorAll('.rwd-pagenum').forEach((el) => {
+      el.replaceWith('PAGEFIELD');
+    });
+    const { documentXml } = htmlToWordML(tmp);
+    // documentXml contains a full <w:document>...<w:body>...</w:body></w:document>
+    // wrapper; pull out just the body's paragraphs.
+    let body = documentXml.replace(/^[\s\S]*<w:body>/, '')
+                          .replace(/<w:sectPr[\s\S]*?<\/w:sectPr>/, '')
+                          .replace(/<\/w:body>[\s\S]*$/, '');
+    // Replace the page-field tokens with real <w:fldSimple instr="PAGE"/> runs
+    body = body.replace(
+      /PAGEFIELD/g,
+      '</w:t></w:r><w:fldSimple w:instr=" PAGE "><w:r><w:t>1</w:t></w:r></w:fldSimple><w:r><w:t xml:space="preserve">'
+    );
+    // The replacement above can leave <w:r><w:t xml:space="preserve"></w:t></w:r>
+    // empty pairs; that's still valid WordML.
+    return body;
+  }
+
+  function buildDocx(html, opts) {
+    const o = (typeof opts === 'string') ? { title: opts } : (opts || {});
+    const title = o.title || 'Document';
+    const headerHtml = o.header || '';
+    const footerHtml = o.footer || '';
+    const hasHeader = !!headerHtml.replace(/<[^>]+>/g, '').trim();
+    const hasFooter = !!footerHtml.replace(/<[^>]+>/g, '').trim();
+
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const { documentXml: rawDocumentXml, rels } = htmlToWordML(tmp);
+
+    const headerXml = hasHeader ?
+      ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"' +
+        ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        buildPartBody(headerHtml) +
+        '</w:hdr>') : '';
+    const footerXml = hasFooter ?
+      ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"' +
+        ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        buildPartBody(footerHtml) +
+        '</w:ftr>') : '';
+
+    // Inject header/footer references into <w:sectPr>.
+    let documentXml = rawDocumentXml;
+    if (hasHeader || hasFooter) {
+      const refs =
+        (hasHeader ? '<w:headerReference w:type="default" r:id="rIdHdr"/>' : '') +
+        (hasFooter ? '<w:footerReference w:type="default" r:id="rIdFtr"/>' : '');
+      documentXml = documentXml.replace('<w:sectPr>', '<w:sectPr>' + refs);
+    }
 
     const contentTypes =
       '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
@@ -410,6 +468,8 @@
       '<Default Extension="xml" ContentType="application/xml"/>' +
       '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
       '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
+      (hasHeader ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '') +
+      (hasFooter ? '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' : '') +
       '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' +
       '</Types>';
 
@@ -424,6 +484,8 @@
       '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
       '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      (hasHeader ? '<Relationship Id="rIdHdr" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' : '') +
+      (hasFooter ? '<Relationship Id="rIdFtr" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' : '') +
       rels.map((r) =>
         '<Relationship Id="' + r.id +
         '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"' +
@@ -470,6 +532,8 @@
       { name: 'word/document.xml',   data: enc.encode(documentXml) },
       { name: 'docProps/core.xml',   data: enc.encode(coreXml) },
     ];
+    if (hasHeader) files.push({ name: 'word/header1.xml', data: enc.encode(headerXml) });
+    if (hasFooter) files.push({ name: 'word/footer1.xml', data: enc.encode(footerXml) });
     return buildZip(files);
   }
 
@@ -669,8 +733,10 @@
 
   // ---------- Public API ----------
   window.RodmanDocx = {
-    saveDocx(html, title) {
-      return new Blob([buildDocx(html, title)], {
+    saveDocx(html, opts) {
+      // opts can be a plain title string (back-compat) or
+      // { title, header, footer } object.
+      return new Blob([buildDocx(html, opts)], {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
     },
