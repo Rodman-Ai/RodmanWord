@@ -499,6 +499,16 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Smart Compose ghost text */
+.editor .rwd-ghost {
+  color: var(--muted);
+  opacity: 0.55;
+  user-select: none;
+  pointer-events: none;
+  font-style: italic;
+}
+.editor .rwd-ghost::before { content: ""; }
+
 /* Grammar marks */
 .editor .rwd-grammar {
   text-decoration: underline wavy #d23f31;

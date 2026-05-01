@@ -2898,6 +2898,162 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Smart Compose ghost-text completion (Tier 3, gap #27)
+  // ============================================================
+  // Lightweight predictor that suggests a continuation as ghost
+  // text, accepted with Tab or Right Arrow at end of word, dismissed
+  // by typing anything else or Esc. Builds a small trigram model
+  // from the document on demand plus a fixed catalogue of common
+  // phrase completions. No network calls.
+  const COMMON_PHRASES = [
+    [/\bthank you\s*$/i, ' for your time.'],
+    [/\bplease let me\s*$/i, ' know if you have any questions.'],
+    [/\bi('m| am)\s*$/i, " writing to follow up on"],
+    [/\bplease find\s*$/i, ' attached the document for your review.'],
+    [/\bin conclusion\s*,?\s*$/i, ' the analysis shows that '],
+    [/\bin summary\s*,?\s*$/i, ' the key findings are '],
+    [/\bdear\s+\w+\s*,?\s*$/i, '\nThank you for reaching out.\n'],
+    [/\bbest\s*$/i, ' regards,'],
+    [/\bsincerely\s*$/i, ' yours,'],
+    [/\bas a result\s*,?\s*$/i, ' '],
+    [/\bhowever\s*,?\s*$/i, ' '],
+    [/\bfor example\s*,?\s*$/i, ' '],
+    [/\bon the other hand\s*,?\s*$/i, ' '],
+    [/\bin order to\s*$/i, ' '],
+    [/\bthat being said\s*,?\s*$/i, ' '],
+    [/\bnext steps\s*:?\s*$/i, '\n1. \n2. \n3. '],
+    [/\baction items\s*:?\s*$/i, '\n- \n- '],
+    [/\blet me know\s*$/i, ' if this works for you.'],
+    [/\blooking forward to\s*$/i, ' hearing from you.'],
+    [/\bwith respect to\s*$/i, ' the matter at hand'],
+  ];
+
+  const smartComposeToggle = $('#smartComposeToggle');
+  let smartActive = false;
+  let trigrams = {}; // built once per open modal session
+
+  function buildTrigrams() {
+    trigrams = {};
+    const words = (editor.innerText || '').split(/\s+/).filter(Boolean);
+    for (let i = 0; i < words.length - 2; i++) {
+      const k = (words[i] + ' ' + words[i + 1]).toLowerCase();
+      trigrams[k] = trigrams[k] || {};
+      trigrams[k][words[i + 2]] = (trigrams[k][words[i + 2]] || 0) + 1;
+    }
+  }
+  function trigramSuggestion(prevTwo) {
+    const k = prevTwo.toLowerCase();
+    const m = trigrams[k];
+    if (!m) return '';
+    const best = Object.keys(m).sort((a, b) => m[b] - m[a])[0];
+    return best ? ' ' + best : '';
+  }
+
+  function clearGhost() {
+    editor.querySelectorAll('.rwd-ghost').forEach((g) => g.remove());
+  }
+
+  function caretAtEnd(el) {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return false;
+    const r = sel.getRangeAt(0);
+    if (!r.collapsed) return false;
+    return el === r.endContainer || el.contains(r.endContainer);
+  }
+
+  function suggestGhost() {
+    if (!smartActive) return;
+    clearGhost();
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const r = sel.getRangeAt(0);
+    if (!r.collapsed) return;
+    if (!editor.contains(r.endContainer)) return;
+    // Look at the text immediately before the caret
+    let textNode = r.endContainer;
+    if (textNode.nodeType !== 3) return;
+    const before = textNode.nodeValue.slice(0, r.endOffset);
+
+    // 1) Common phrase completion
+    for (const [re, completion] of COMMON_PHRASES) {
+      if (re.test(before)) {
+        insertGhost(completion);
+        return;
+      }
+    }
+    // 2) Trigram from the doc
+    const tail = before.match(/(\S+)\s+(\S+)\s*$/);
+    if (tail) {
+      const sug = trigramSuggestion(tail[1] + ' ' + tail[2]);
+      if (sug) insertGhost(sug);
+    }
+  }
+
+  function insertGhost(text) {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const r = sel.getRangeAt(0);
+    const ghost = document.createElement('span');
+    ghost.className = 'rwd-ghost';
+    ghost.contentEditable = 'false';
+    ghost.dataset.suggestion = text;
+    ghost.textContent = text;
+    r.insertNode(ghost);
+    // Keep the caret before the ghost
+    const r2 = document.createRange();
+    r2.setStartBefore(ghost);
+    r2.setEndBefore(ghost);
+    sel.removeAllRanges();
+    sel.addRange(r2);
+  }
+
+  function acceptGhost() {
+    const ghost = editor.querySelector('.rwd-ghost');
+    if (!ghost) return false;
+    const text = ghost.dataset.suggestion || ghost.textContent;
+    ghost.remove();
+    document.execCommand('insertText', false, text);
+    queueAutosave();
+    return true;
+  }
+
+  smartComposeToggle?.addEventListener('change', () => {
+    smartActive = smartComposeToggle.checked;
+    if (smartActive) {
+      buildTrigrams();
+      toast('Smart Compose ON — Tab accepts a suggestion', 'info');
+    } else {
+      clearGhost();
+    }
+  });
+
+  // Recompute trigrams every ~30s when active
+  setInterval(() => { if (smartActive) buildTrigrams(); }, 30000);
+
+  // Refresh suggestion on input (not on every keystroke — debounced)
+  editor.addEventListener('input', () => {
+    if (!smartActive) return;
+    clearTimeout(window.__rwdScT);
+    window.__rwdScT = setTimeout(suggestGhost, 250);
+  });
+
+  // Tab / Right Arrow accept; anything else dismisses
+  editor.addEventListener('keydown', (e) => {
+    if (!smartActive) return;
+    const ghost = editor.querySelector('.rwd-ghost');
+    if (!ghost) return;
+    if (e.key === 'Tab' || (e.key === 'ArrowRight' && !e.shiftKey)) {
+      e.preventDefault();
+      acceptGhost();
+    } else if (e.key === 'Escape') {
+      clearGhost();
+    } else {
+      // Any other key: clear so it doesn't interfere with normal typing
+      clearGhost();
+    }
+  }, true);
+
+  // ============================================================
   // FEATURE: Image crop + effects (Tier 3, gap #29)
   // ============================================================
   let cropTarget = null;
