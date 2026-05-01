@@ -499,6 +499,41 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Form fields */
+.editor .rwd-form-text {
+  display: inline-block;
+  border: none;
+  border-bottom: 1px solid var(--primary);
+  background: rgba(43, 87, 154, 0.04);
+  font: inherit;
+  padding: 0 4px;
+  min-width: 80px;
+  outline: none;
+}
+.editor .rwd-form-text:focus { background: rgba(43, 87, 154, 0.12); }
+.editor .rwd-form-check {
+  vertical-align: middle;
+  width: 16px;
+  height: 16px;
+  margin: 0 4px;
+}
+.editor .rwd-form-select {
+  font: inherit;
+  border: 1px solid var(--ribbon-border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  background: var(--page-bg);
+  color: var(--text);
+}
+
+/* Restrict-editing mode */
+.restrict-edit .editor {
+  caret-color: transparent;
+}
+.restrict-edit .editor *:not(.rwd-form-text):not(.rwd-form-check):not(.rwd-form-select):not([data-rwd-allow]) {
+  user-select: none;
+}
+
 /* Outline collapsing */
 .editor h1, .editor h2, .editor h3, .editor h4, .editor h5, .editor h6 {
   position: relative;

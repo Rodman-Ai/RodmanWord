@@ -2694,6 +2694,51 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Form fields + document protection (Tier 2, gap #25)
+  // ============================================================
+  $('#formTextBtn')?.addEventListener('click', () => {
+    const placeholder = prompt('Placeholder text:', 'Click to type…') || '';
+    const html = '<input class="rwd-form-text" type="text" placeholder="' +
+      escapeHtml(placeholder) + '"/>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  $('#formCheckBtn')?.addEventListener('click', () => {
+    const html = '<input class="rwd-form-check" type="checkbox"/>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  $('#formSelectBtn')?.addEventListener('click', () => {
+    const optStr = prompt('Comma-separated options:', 'Yes, No, Maybe');
+    if (!optStr) return;
+    const opts = optStr.split(',').map((o) => o.trim()).filter(Boolean);
+    const html = '<select class="rwd-form-select">' +
+      opts.map((o) => '<option>' + escapeHtml(o) + '</option>').join('') +
+      '</select>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    queueAutosave();
+  });
+
+  // Restrict editing — toggles contenteditable on the editor.
+  // Form-field elements remain interactive because they're <input>
+  // and <select>, which are not affected by contenteditable on a
+  // parent.
+  const restrictEditToggle = $('#restrictEditToggle');
+  restrictEditToggle?.addEventListener('change', () => {
+    const on = restrictEditToggle.checked;
+    document.body.classList.toggle('restrict-edit', on);
+    editor.contentEditable = on ? 'false' : 'true';
+    if (docHeader) docHeader.contentEditable = on ? 'false' : 'true';
+    if (docFooter) docFooter.contentEditable = on ? 'false' : 'true';
+    toast(on ? 'Editing restricted to form fields' : 'Editing unrestricted', 'info');
+  });
+
+  // ============================================================
   // FEATURE: Print preview (Tier 2, gap #24)
   // ============================================================
   function showPrintPreview() {
