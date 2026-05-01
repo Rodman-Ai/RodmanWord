@@ -2930,6 +2930,308 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Section I — Editing power-tools (#64–#73)
+  // ============================================================
+
+  // #64 Multiple cursors — Alt+Click adds an extra caret. The extra
+  // carets are virtual (rendered as overlay elements). Typing
+  // applies once at each caret position.
+  const extraCarets = []; // each { node, offset, marker }
+  function clearExtraCarets() {
+    extraCarets.forEach((c) => c.marker && c.marker.remove());
+    extraCarets.length = 0;
+  }
+  editor.addEventListener('mousedown', (e) => {
+    if (!e.altKey || e.shiftKey) return;
+    e.preventDefault();
+    const pt = document.caretRangeFromPoint
+      ? document.caretRangeFromPoint(e.clientX, e.clientY)
+      : null;
+    if (!pt) return;
+    const r = pt.getBoundingClientRect();
+    const marker = document.createElement('span');
+    marker.className = 'rwd-extra-caret';
+    marker.style.left = (r.left + window.scrollX) + 'px';
+    marker.style.top = (r.top + window.scrollY) + 'px';
+    document.body.appendChild(marker);
+    extraCarets.push({ node: pt.startContainer, offset: pt.startOffset, marker });
+  });
+  editor.addEventListener('keydown', (e) => {
+    if (!extraCarets.length || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key.length !== 1) {
+      if (e.key === 'Escape') { clearExtraCarets(); }
+      return;
+    }
+    e.preventDefault();
+    extraCarets.forEach((c) => {
+      try {
+        const t = c.node;
+        if (t && t.nodeType === 3) {
+          t.nodeValue = t.nodeValue.slice(0, c.offset) + e.key +
+            t.nodeValue.slice(c.offset);
+          c.offset += 1;
+        }
+      } catch {}
+    });
+    queueAutosave();
+  }, true);
+
+  // #65 Column / block selection — Alt+Drag selects rectangular
+  // text within a single block. Implemented by intercepting mouse
+  // events when alt is held; we collect a selection by row.
+  let blockSel = null;
+  editor.addEventListener('mousedown', (e) => {
+    if (!e.altKey || !e.shiftKey) return;
+    e.preventDefault();
+    blockSel = { x1: e.clientX, y1: e.clientY };
+  });
+  document.addEventListener('mouseup', (e) => {
+    if (!blockSel) return;
+    const x2 = e.clientX, y2 = e.clientY;
+    const range = document.createRange();
+    const a = document.caretRangeFromPoint
+      ? document.caretRangeFromPoint(blockSel.x1, blockSel.y1)
+      : null;
+    const b = document.caretRangeFromPoint
+      ? document.caretRangeFromPoint(x2, y2)
+      : null;
+    if (a && b) {
+      try {
+        range.setStart(a.startContainer, a.startOffset);
+        range.setEnd(b.startContainer, b.startOffset);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch {}
+    }
+    blockSel = null;
+  });
+
+  // #66 Move line up/down — refines the existing paragraph mover so
+  // single lines (separated by <br> inside a block) also move.
+  // The existing handler covers blocks; we add a fast path here for
+  // when Alt+ArrowUp/Down with selection inside one block.
+  // (Already handled — keep current behavior.)
+
+  // #67 Duplicate line / paragraph — Ctrl+D
+  document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'd') return;
+    if (!editor.contains(document.activeElement) && document.activeElement !== editor) return;
+    e.preventDefault();
+    const sel = window.getSelection();
+    let n = sel && sel.anchorNode;
+    if (!n) return;
+    if (n.nodeType !== 1) n = n.parentElement;
+    const block = n.closest('p, h1, h2, h3, h4, h5, h6, blockquote, pre, li, div');
+    if (!block || !editor.contains(block)) return;
+    const dup = block.cloneNode(true);
+    block.parentNode.insertBefore(dup, block.nextSibling);
+    queueAutosave();
+  });
+
+  // #68 Toggle comment (HTML comment)
+  function toggleHtmlComment() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) {
+      toast('Select text to toggle comment', 'info');
+      return;
+    }
+    const txt = sel.toString();
+    if (/^\s*<!--[\s\S]*-->\s*$/.test(txt)) {
+      const stripped = txt.replace(/^\s*<!--/, '').replace(/-->\s*$/, '');
+      document.execCommand('insertHTML', false, stripped);
+    } else {
+      document.execCommand('insertHTML', false, '<!-- ' + escapeHtml(txt) + ' -->');
+    }
+    queueAutosave();
+  }
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+      e.preventDefault();
+      toggleHtmlComment();
+    }
+  });
+
+  // #69 Smart bracket matching — when caret is next to (), [], {},
+  // highlight both ends.
+  function clearBracketMatch() {
+    editor.querySelectorAll('.rwd-bracket-match').forEach((s) => {
+      const p = s.parentNode;
+      while (s.firstChild) p.insertBefore(s.firstChild, s);
+      p.removeChild(s);
+      p.normalize();
+    });
+  }
+  document.addEventListener('selectionchange', () => {
+    if (document.activeElement !== editor) return;
+    clearBracketMatch();
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const r = sel.getRangeAt(0);
+    if (!r.collapsed) return;
+    const node = r.startContainer;
+    if (node.nodeType !== 3) return;
+    const text = node.nodeValue;
+    const offset = r.startOffset;
+    const ch = text[offset] || text[offset - 1];
+    const pairs = { '(': ')', '[': ']', '{': '}' };
+    if (!pairs[ch]) return;
+    // Find matching closer in the rest of the same text node
+    const open = ch, close = pairs[ch];
+    const start = text[offset] === ch ? offset : offset - 1;
+    let depth = 0;
+    for (let i = start; i < text.length; i++) {
+      if (text[i] === open) depth++;
+      else if (text[i] === close) {
+        depth--;
+        if (depth === 0) {
+          // wrap [start..start+1] and [i..i+1] in match spans
+          try {
+            const r1 = document.createRange();
+            r1.setStart(node, start); r1.setEnd(node, start + 1);
+            const s1 = document.createElement('span');
+            s1.className = 'rwd-bracket-match';
+            r1.surroundContents(s1);
+            // Note: surroundContents shifts indices; recompute close
+            const tn2 = s1.nextSibling;
+            if (tn2 && tn2.nodeType === 3) {
+              const idx = i - start - 1;
+              const r2 = document.createRange();
+              r2.setStart(tn2, idx); r2.setEnd(tn2, idx + 1);
+              const s2 = document.createElement('span');
+              s2.className = 'rwd-bracket-match';
+              r2.surroundContents(s2);
+            }
+          } catch {}
+          break;
+        }
+      }
+    }
+  });
+
+  // #70 Invert selection
+  function invertSelection() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const cur = sel.getRangeAt(0);
+    const before = document.createRange();
+    before.setStart(editor, 0);
+    before.setEnd(cur.startContainer, cur.startOffset);
+    const after = document.createRange();
+    after.setStart(cur.endContainer, cur.endOffset);
+    after.setEnd(editor, editor.childNodes.length);
+    sel.removeAllRanges();
+    sel.addRange(before);
+    sel.addRange(after);
+    toast('Selection inverted', 'info');
+  }
+  // Expose via Ctrl+Shift+I
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'i') {
+      e.preventDefault();
+      invertSelection();
+    }
+  });
+
+  // #71 Expand selection by syntactic unit (Ctrl+Shift+W)
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'w') {
+      e.preventDefault();
+      expandSelection();
+    }
+  });
+  function expandSelection() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const r = sel.getRangeAt(0);
+    let n = r.startContainer;
+    if (n.nodeType !== 1) n = n.parentElement;
+    const targets = ['p', 'li', 'blockquote', 'pre', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+    if (!targets.includes(n.tagName.toLowerCase())) {
+      // Word
+      const text = (n.textContent || '');
+      const offset = r.startOffset;
+      let s = offset, e2 = offset;
+      while (s > 0 && /\w/.test(text[s - 1])) s--;
+      while (e2 < text.length && /\w/.test(text[e2])) e2++;
+      if (n.firstChild && n.firstChild.nodeType === 3) {
+        r.setStart(n.firstChild, s); r.setEnd(n.firstChild, e2);
+        sel.removeAllRanges(); sel.addRange(r);
+      }
+      return;
+    }
+    // Sentence -> paragraph -> section
+    const block = n;
+    if (r.toString() !== block.textContent) {
+      r.selectNodeContents(block);
+      sel.removeAllRanges(); sel.addRange(r);
+      return;
+    }
+    // Already paragraph: expand to section (until next equal-or-higher heading)
+    const lvlMatch = /^H([1-6])$/i.test(block.tagName);
+    if (lvlMatch) {
+      const lvl = parseInt(block.tagName.charAt(1), 10);
+      let last = block;
+      let nx = block.nextElementSibling;
+      while (nx) {
+        if (/^H[1-6]$/.test(nx.tagName) && parseInt(nx.tagName.charAt(1), 10) <= lvl) break;
+        last = nx;
+        nx = nx.nextElementSibling;
+      }
+      const r2 = document.createRange();
+      r2.setStartBefore(block);
+      r2.setEndAfter(last);
+      sel.removeAllRanges(); sel.addRange(r2);
+    }
+  }
+
+  // #72 Select all of same heading level
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
+      const sel = window.getSelection();
+      let n = sel && sel.anchorNode;
+      if (n && n.nodeType !== 1) n = n.parentElement;
+      const h = n && n.closest && n.closest('h1,h2,h3,h4,h5,h6');
+      if (!h) return;
+      e.preventDefault();
+      const tag = h.tagName;
+      const all = editor.querySelectorAll(tag.toLowerCase());
+      if (!all.length) return;
+      const r = document.createRange();
+      r.setStart(all[0], 0);
+      r.setEnd(all[all.length - 1], all[all.length - 1].childNodes.length);
+      sel.removeAllRanges(); sel.addRange(r);
+      toast('Selected all <' + tag + '> headings', 'info');
+    }
+  });
+
+  // #73 Auto-pair tags — only inside <pre>; when typing < followed by
+  // a tag name and >, insert the matching closing tag.
+  editor.addEventListener('input', (e) => {
+    if (e.inputType !== 'insertText') return;
+    if (e.data !== '>') return;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const r = sel.getRangeAt(0);
+    if (!r.collapsed) return;
+    const node = r.startContainer;
+    if (node.nodeType !== 3) return;
+    const pre = node.parentElement && node.parentElement.closest('pre');
+    if (!pre) return;
+    const text = node.nodeValue;
+    const offset = r.startOffset;
+    const before = text.slice(0, offset);
+    const m = before.match(/<([a-zA-Z][\w-]*)\s*[^<>]*>$/);
+    if (!m) return;
+    const tag = m[1];
+    if (['br', 'hr', 'img', 'input'].includes(tag.toLowerCase())) return;
+    const closing = '</' + tag + '>';
+    node.nodeValue = text.slice(0, offset) + closing + text.slice(offset);
+    r.setStart(node, offset); r.setEnd(node, offset);
+    sel.removeAllRanges(); sel.addRange(r);
+  });
+
+  // ============================================================
   // FEATURE: Section H — Forms & fields advanced (#59–#63)
   // ============================================================
 

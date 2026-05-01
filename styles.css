@@ -499,6 +499,22 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Multi-cursor + bracket match */
+.editor .rwd-extra-caret {
+  position: absolute;
+  width: 1px;
+  height: 1.4em;
+  background: var(--theme-accent-2, #d23f31);
+  pointer-events: none;
+  animation: rwd-blink 1s step-end infinite;
+}
+@keyframes rwd-blink { 50% { opacity: 0; } }
+.editor .rwd-bracket-match {
+  background: rgba(43,87,154,0.20);
+  border-radius: 2px;
+  outline: 1px solid var(--primary);
+}
+
 /* Form fields advanced */
 .editor input.rwd-form-date,
 .editor input.rwd-form-number {
