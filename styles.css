@@ -245,6 +245,41 @@ body {
   border: none; padding: 0;
 }
 
+/* Inline dropdown menu inside the ribbon */
+.rwd-menu-host { position: relative; display: inline-block; }
+.rwd-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 70;
+  background: var(--page-bg);
+  border: 1px solid var(--ribbon-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  min-width: 200px;
+  padding: 4px;
+}
+.rwd-menu.open { display: block; }
+.rwd-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 3px;
+}
+.rwd-menu button:hover { background: var(--hover); }
+
+/* Hint that the ribbon can be collapsed by double-click */
+.tab { position: relative; }
+.tab[title]::after { content: ""; }
+
 .select {
   height: 28px;
   padding: 2px 6px;

@@ -24,6 +24,10 @@
   const docFooter = document.getElementById('docFooter');
 
   // ---------- Tabs ----------
+  // Word-style behaviour:
+  //   single click — switch to that tab; if the ribbon is collapsed,
+  //                  also auto-expand it.
+  //   double click — collapse / expand the ribbon (toggle).
   $$('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       const target = tab.dataset.tab;
@@ -31,6 +35,8 @@
         openBackstage();
         return;
       }
+      const wasCollapsed = ribbon.classList.contains('collapsed');
+      const wasActive = tab.classList.contains('active');
       $$('.tab').forEach((t) => {
         t.classList.toggle('active', t === tab);
         t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
@@ -38,12 +44,47 @@
       $$('.ribbon-panel').forEach((p) => {
         p.classList.toggle('active', p.dataset.panel === target);
       });
-      ribbon.classList.remove('collapsed');
+      // Switching to a different tab while collapsed expands the ribbon
+      // and keeps it expanded; clicking the active tab while expanded
+      // is a no-op (use double-click to collapse).
+      if (wasCollapsed && !wasActive) {
+        ribbon.classList.remove('collapsed');
+      }
+    });
+    tab.addEventListener('dblclick', (e) => {
+      // Don't ever route a dbl-click into File / backstage
+      if (tab.dataset.tab === 'file') { e.preventDefault(); return; }
+      ribbon.classList.toggle('collapsed');
     });
   });
 
   $('#toggleRibbonBtn').addEventListener('click', () => {
     ribbon.classList.toggle('collapsed');
+  });
+
+  // Inline ribbon dropdown menus (used by Insert → Pictures, Shapes)
+  $$('.rwd-menu-host').forEach((host) => {
+    const trigger = host.querySelector('.ribbon-btn');
+    const menu = host.querySelector('.rwd-menu');
+    if (!trigger || !menu) return;
+    trigger.addEventListener('click', (e) => {
+      // If the trigger has its own ID, treat the click as opening the
+      // menu rather than running the trigger's other handler.
+      e.stopPropagation();
+      const opening = !menu.classList.contains('open');
+      // Close every other open menu
+      $$('.rwd-menu.open').forEach((m) => m.classList.remove('open'));
+      if (opening) menu.classList.add('open');
+    });
+    // Clicking an item inside closes the menu after firing.
+    menu.addEventListener('click', () => {
+      setTimeout(() => menu.classList.remove('open'), 0);
+    });
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (!e.target.closest('.rwd-menu-host')) {
+      $$('.rwd-menu.open').forEach((m) => m.classList.remove('open'));
+    }
   });
 
   // ---------- Selection helpers ----------

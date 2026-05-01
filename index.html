@@ -45,12 +45,13 @@
   </header>
 
   <nav class="tabs" role="tablist" aria-label="Ribbon tabs">
-    <button class="tab" role="tab" data-tab="file">File</button>
-    <button class="tab active" role="tab" aria-selected="true" data-tab="home">Home</button>
-    <button class="tab" role="tab" data-tab="insert">Insert</button>
-    <button class="tab" role="tab" data-tab="layout">Layout</button>
-    <button class="tab" role="tab" data-tab="review">Review</button>
-    <button class="tab" role="tab" data-tab="view">View</button>
+    <button class="tab" role="tab" title="Double-click to collapse the ribbon" data-tab="file">File</button>
+    <button class="tab active" role="tab" aria-selected="true" data-tab="home" title="Double-click to collapse the ribbon">Home</button>
+    <button class="tab" role="tab" title="Double-click to collapse the ribbon" data-tab="insert">Insert</button>
+    <button class="tab" role="tab" title="Double-click to collapse the ribbon" data-tab="references">References</button>
+    <button class="tab" role="tab" title="Double-click to collapse the ribbon" data-tab="layout">Layout</button>
+    <button class="tab" role="tab" title="Double-click to collapse the ribbon" data-tab="review">Review</button>
+    <button class="tab" role="tab" title="Double-click to collapse the ribbon" data-tab="view">View</button>
   </nav>
 
   <section class="ribbon" id="ribbon">
@@ -193,99 +194,75 @@
     <div class="ribbon-panel" data-panel="insert">
       <div class="group">
         <div class="group-row">
-          <button class="ribbon-btn wide" id="insertImageBtn">🖼 Picture</button>
-          <button class="ribbon-btn wide" id="insertGalleryBtn" title="Image grid">▦🖼 Gallery</button>
-          <button class="ribbon-btn wide" id="insertCarouselBtn" title="Image carousel">↔🖼 Carousel</button>
-          <button class="ribbon-btn wide" id="insertLinkedImgBtn" title="Linked (URL) image">🔗🖼 Linked img</button>
-          <button class="ribbon-btn wide" id="insertVideoBtn" title="YouTube / Vimeo">▶ Video</button>
-          <button class="ribbon-btn wide" id="insertAudioBtn" title="Audio file">♪ Audio</button>
-          <button class="ribbon-btn wide" id="insertIframeBtn" title="iframe (sandboxed)">▥ Iframe</button>
-          <button class="ribbon-btn wide" id="insertQrBtn" title="QR code">⊞ QR</button>
-          <button class="ribbon-btn wide" id="insertBarcodeBtn" title="Barcode">| || Barcode</button>
-          <button class="ribbon-btn wide" id="insertLinkBtn">🔗 Link</button>
-          <button class="ribbon-btn wide" id="insertTableBtn">▦ Table</button>
-          <button class="ribbon-btn wide" id="textToTableBtn" title="Convert selected text to table">▦← Text→Table</button>
-          <button class="ribbon-btn wide" id="tableToTextBtn" title="Convert table to text">→T Table→Text</button>
+          <button class="ribbon-btn" id="coverPageBtn" title="Cover page">📄 Cover</button>
+          <button class="ribbon-btn" id="pageBreakBtn" title="Page break">¶ Page break</button>
+          <button class="ribbon-btn" id="sectionBreakBtn" title="Section break">§ Section</button>
         </div>
-        <div class="group-label">Insert</div>
+        <div class="group-label">Pages</div>
       </div>
+
       <div class="group">
         <div class="group-row">
-          <button class="ribbon-btn wide" data-cmd="insertHorizontalRule">― Hr. line</button>
-          <button class="ribbon-btn wide" id="insertDateBtn">📅 Date</button>
-          <button class="ribbon-btn wide" id="insertSymbolBtn">Ω Symbol</button>
-          <button class="ribbon-btn wide" id="insertEmojiBtn">😀 Emoji</button>
+          <button class="ribbon-btn" id="insertTableBtn" title="Insert table">▦ Table</button>
+          <button class="ribbon-btn" id="textToTableBtn" title="Convert text to table">▦← Text→Table</button>
+          <button class="ribbon-btn" id="tableToTextBtn" title="Convert table to text">→T Table→Text</button>
         </div>
-        <div class="group-label">Elements</div>
+        <div class="group-label">Tables</div>
       </div>
+
       <div class="group">
         <div class="group-row">
-          <button class="ribbon-btn wide" id="insertTocBtn" title="Insert table of contents">📑 TOC</button>
-          <button class="ribbon-btn wide" id="insertFootnoteBtn" title="Insert footnote">⁺¹ Footnote</button>
-          <button class="ribbon-btn wide" id="dropCapBtn" title="Toggle drop cap on paragraph">A Drop cap</button>
-          <button class="ribbon-btn wide" id="bookmarkBtn" title="Add bookmark at cursor">🔖 Bookmark</button>
-          <button class="ribbon-btn wide" id="bookmarksMenuBtn" title="Jump to bookmark">📚 Bookmarks ▾</button>
-          <button class="ribbon-btn wide" id="equationBtn" title="Insert equation">∑ Equation</button>
-          <button class="ribbon-btn wide" id="sectionBreakBtn" title="Insert section break">§ Section</button>
-          <button class="ribbon-btn wide" id="captionBtn" title="Insert auto-numbered caption">🏷 Caption</button>
-          <button class="ribbon-btn wide" id="crossRefBtn" title="Insert cross-reference">↗ Cross-ref</button>
-          <button class="ribbon-btn wide" id="citationBtn" title="Insert citation">📎 Cite</button>
-          <button class="ribbon-btn wide" id="bibliographyBtn" title="Insert bibliography">📚 Bibliography</button>
-          <button class="ribbon-btn wide" id="doiBtn" title="DOI lookup">DOI</button>
-          <button class="ribbon-btn wide" id="isbnBtn" title="ISBN lookup">ISBN</button>
-          <button class="ribbon-btn wide" id="bibtexBtn" title="Import BibTeX">BibTeX</button>
-          <select class="select sm" id="citationStyleSelect" title="Citation style">
-            <option value="apa">APA</option>
-            <option value="mla">MLA</option>
-            <option value="chicago">Chicago</option>
-            <option value="ieee">IEEE</option>
-            <option value="harvard">Harvard</option>
-            <option value="vancouver">Vancouver</option>
-          </select>
-          <button class="ribbon-btn wide" id="indexMarkBtn" title="Mark index entry">≡ Index entry</button>
-          <button class="ribbon-btn wide" id="insertIndexBtn" title="Insert index">⊞ Index</button>
-          <button class="ribbon-btn wide" id="listOfFiguresBtn" title="List of figures/tables/equations">📑 Lists</button>
-          <button class="ribbon-btn wide" id="tabStopBtn" title="Insert tab stop with leader">⇥ Tab stop</button>
-          <button class="ribbon-btn wide" id="chartBtn" title="Insert chart from data">📊 Chart</button>
-          <button class="ribbon-btn wide" id="formTextBtn" title="Insert text form field">✎ Text field</button>
-          <button class="ribbon-btn wide" id="formCheckBtn" title="Insert checkbox">☐ Checkbox</button>
-          <button class="ribbon-btn wide" id="formSelectBtn" title="Insert dropdown">▾ Dropdown</button>
-          <button class="ribbon-btn wide" id="formDateBtn" title="Date picker form field">📅 Date field</button>
-          <button class="ribbon-btn wide" id="formNumberBtn" title="Number field with validation">№ Number field</button>
-          <button class="ribbon-btn wide" id="formExportBtn" title="Export form data as CSV">⤓ Form data</button>
-          <button class="ribbon-btn wide" id="fieldCodeBtn" title="Field code editor">{ } Field codes</button>
-          <button class="ribbon-btn wide" id="shapeRectBtn" title="Insert rectangle">▭ Rect</button>
-          <button class="ribbon-btn wide" id="shapeEllipseBtn" title="Insert ellipse">◯ Ellipse</button>
-          <button class="ribbon-btn wide" id="shapeArrowBtn" title="Insert arrow">→ Arrow</button>
-          <button class="ribbon-btn wide" id="textBoxBtn" title="Insert text box">▢T Text box</button>
+          <button class="ribbon-btn" id="insertImageBtn" title="Picture from file">🖼 Picture</button>
+          <div class="rwd-menu-host">
+            <button class="ribbon-btn" id="picturesMoreBtn" title="More picture options">More ▾</button>
+            <div class="rwd-menu" id="picturesMore">
+              <button id="insertGalleryBtn">▦🖼 Gallery</button>
+              <button id="insertCarouselBtn">↔🖼 Carousel</button>
+              <button id="insertLinkedImgBtn">🔗🖼 Linked image (URL)</button>
+            </div>
+          </div>
+          <div class="rwd-menu-host">
+            <button class="ribbon-btn" id="shapesMenuBtn" title="Shapes">▭ Shapes ▾</button>
+            <div class="rwd-menu" id="shapesMore">
+              <button id="shapeRectBtn">▭ Rectangle</button>
+              <button id="shapeEllipseBtn">◯ Ellipse</button>
+              <button id="shapeArrowBtn">→ Arrow</button>
+              <button id="textBoxBtn">▢T Text box</button>
+            </div>
+          </div>
+          <button class="ribbon-btn" id="chartBtn" title="Chart from data">📊 Chart</button>
+          <button class="ribbon-btn" id="equationBtn" title="Equation">∑ Equation</button>
         </div>
-        <div class="group-label">Layout</div>
+        <div class="group-label">Illustrations</div>
       </div>
+
       <div class="group">
         <div class="group-row">
-          <button class="ribbon-btn wide" id="pullQuoteBtn" title="Insert pull quote">❝ Pull quote</button>
-          <button class="ribbon-btn wide" id="codeBlockBtn" title="Insert code block">{ } Code</button>
-          <button class="ribbon-btn wide" id="wordArtBtn" title="Insert decorative title">✨ Word art</button>
-          <button class="ribbon-btn wide" id="watermarkBtn" title="Toggle watermark">💧 Watermark</button>
+          <button class="ribbon-btn" id="insertVideoBtn" title="YouTube / Vimeo">▶ Video</button>
+          <button class="ribbon-btn" id="insertAudioBtn" title="Audio file">♪ Audio</button>
+          <button class="ribbon-btn" id="insertIframeBtn" title="Iframe (sandboxed)">▥ Iframe</button>
+          <button class="ribbon-btn" id="insertQrBtn" title="QR code">⊞ QR</button>
+          <button class="ribbon-btn" id="insertBarcodeBtn" title="Barcode">| || Barcode</button>
         </div>
-        <div class="group-label">Decorative</div>
+        <div class="group-label">Media</div>
       </div>
+
       <div class="group">
         <div class="group-row">
-          <button class="ribbon-btn wide" id="pageBreakBtn">¶ Page break</button>
-          <button class="ribbon-btn wide" id="dictateBtn" title="Voice dictation">🎙 Dictate</button>
-          <button class="ribbon-btn wide" id="loremBtn" title="Lorem ipsum">📝 Lorem</button>
+          <button class="ribbon-btn" id="insertLinkBtn" title="Insert link">🔗 Link</button>
+          <button class="ribbon-btn" id="bookmarkBtn" title="Add bookmark">🔖 Bookmark</button>
+          <button class="ribbon-btn" id="bookmarksMenuBtn" title="Jump to bookmark">📚 ▾</button>
         </div>
-        <div class="group-label">More</div>
+        <div class="group-label">Links</div>
       </div>
+
       <div class="group">
         <div class="group-row">
-          <button class="ribbon-btn wide" id="coverPageBtn" title="Cover page">📄 Cover</button>
-          <button class="ribbon-btn wide" id="insertHeaderBtn" title="Edit page header">▔ Header</button>
-          <button class="ribbon-btn wide" id="insertFooterBtn" title="Edit page footer">▁ Footer</button>
-          <button class="ribbon-btn wide" id="insertPageNumBtn" title="Insert page number field">№ Page number</button>
-          <select class="select" id="insertFieldSelect" title="Insert live field" aria-label="Insert field">
-            <option value="">∰ Insert field…</option>
+          <button class="ribbon-btn" id="insertHeaderBtn" title="Page header">▔ Header</button>
+          <button class="ribbon-btn" id="insertFooterBtn" title="Page footer">▁ Footer</button>
+          <button class="ribbon-btn" id="insertPageNumBtn" title="Page number">№ Page #</button>
+          <select class="select sm" id="insertFieldSelect" title="Insert live field" aria-label="Insert field">
+            <option value="">∰ Field…</option>
             <option value="page">Page number</option>
             <option value="pages">Total pages</option>
             <option value="date">Today's date</option>
@@ -298,12 +275,50 @@
         </div>
         <div class="group-label">Header &amp; Footer</div>
       </div>
+
       <div class="group">
         <div class="group-row">
-          <button class="ribbon-btn wide" id="commentBtn" title="Add comment to selection">💬 Comment</button>
-          <button class="ribbon-btn wide" id="quickPartsBtn" title="Insert saved snippet">⚡ Quick parts</button>
-          <select class="select" id="changeCase" title="Change case" aria-label="Change case">
-            <option value="">Aa Change case…</option>
+          <button class="ribbon-btn" id="wordArtBtn" title="Word art">✨ Word art</button>
+          <button class="ribbon-btn" id="dropCapBtn" title="Drop cap">A Drop cap</button>
+          <button class="ribbon-btn" id="pullQuoteBtn" title="Pull quote">❝ Pull quote</button>
+          <button class="ribbon-btn" id="codeBlockBtn" title="Code block">{ } Code</button>
+          <button class="ribbon-btn" id="watermarkBtn" title="Watermark">💧 Watermark</button>
+          <button class="ribbon-btn" id="tabStopBtn" title="Tab stop with leader">⇥ Tab</button>
+          <button class="ribbon-btn" id="loremBtn" title="Lorem ipsum">📝 Lorem</button>
+          <button class="ribbon-btn" id="insertDateBtn" title="Calendar date">📅 Date</button>
+          <button class="ribbon-btn" data-cmd="insertHorizontalRule" title="Horizontal line">― Hr</button>
+        </div>
+        <div class="group-label">Text</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="insertSymbolBtn" title="Symbols">Ω Symbol</button>
+          <button class="ribbon-btn" id="insertEmojiBtn" title="Emoji">😀 Emoji</button>
+        </div>
+        <div class="group-label">Symbols</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="formTextBtn" title="Text input">✎ Text</button>
+          <button class="ribbon-btn" id="formCheckBtn" title="Checkbox">☐ Check</button>
+          <button class="ribbon-btn" id="formSelectBtn" title="Dropdown">▾ Drop</button>
+          <button class="ribbon-btn" id="formDateBtn" title="Date field">📅 Date fld</button>
+          <button class="ribbon-btn" id="formNumberBtn" title="Number field">№ Num fld</button>
+          <button class="ribbon-btn" id="formExportBtn" title="Export form data">⤓ CSV</button>
+          <button class="ribbon-btn" id="fieldCodeBtn" title="Field codes">{ } Codes</button>
+        </div>
+        <div class="group-label">Forms</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="commentBtn" title="Add comment">💬 Comment</button>
+          <button class="ribbon-btn" id="quickPartsBtn" title="Quick parts">⚡ Quick</button>
+          <button class="ribbon-btn" id="dictateBtn" title="Voice dictation">🎙 Dictate</button>
+          <select class="select sm" id="changeCase" title="Change case" aria-label="Change case">
+            <option value="">Aa Case…</option>
             <option value="upper">UPPERCASE</option>
             <option value="lower">lowercase</option>
             <option value="title">Title Case</option>
@@ -312,6 +327,59 @@
           </select>
         </div>
         <div class="group-label">Editing</div>
+      </div>
+    </div>
+
+    <!-- References tab -->
+    <div class="ribbon-panel" data-panel="references">
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="insertTocBtn" title="Insert table of contents">📑 TOC</button>
+          <button class="ribbon-btn" id="listOfFiguresBtn" title="List of figures / tables / equations">📃 Lists</button>
+        </div>
+        <div class="group-label">Contents</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="insertFootnoteBtn" title="Insert footnote">⁺¹ Footnote</button>
+          <button class="ribbon-btn" id="captionBtn" title="Insert auto-numbered caption">🏷 Caption</button>
+          <button class="ribbon-btn" id="crossRefBtn" title="Insert cross-reference">↗ Cross-ref</button>
+        </div>
+        <div class="group-label">Footnotes &amp; captions</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="citationBtn" title="Insert citation">📎 Cite</button>
+          <button class="ribbon-btn" id="bibliographyBtn" title="Insert bibliography">📚 Bibliography</button>
+          <select class="select sm" id="citationStyleSelect" title="Citation style">
+            <option value="apa">APA</option>
+            <option value="mla">MLA</option>
+            <option value="chicago">Chicago</option>
+            <option value="ieee">IEEE</option>
+            <option value="harvard">Harvard</option>
+            <option value="vancouver">Vancouver</option>
+          </select>
+        </div>
+        <div class="group-label">Citations</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="doiBtn" title="DOI lookup → citation">DOI</button>
+          <button class="ribbon-btn" id="isbnBtn" title="ISBN lookup → citation">ISBN</button>
+          <button class="ribbon-btn" id="bibtexBtn" title="Import BibTeX">BibTeX</button>
+        </div>
+        <div class="group-label">Lookup</div>
+      </div>
+
+      <div class="group">
+        <div class="group-row">
+          <button class="ribbon-btn" id="indexMarkBtn" title="Mark index entry">≡ Mark</button>
+          <button class="ribbon-btn" id="insertIndexBtn" title="Insert back-of-book index">⊞ Index</button>
+        </div>
+        <div class="group-label">Index</div>
       </div>
     </div>
 
