@@ -142,6 +142,10 @@
             <option value="BLOCKQUOTE">Quote</option>
             <option value="PRE">Code</option>
           </select>
+          <select class="select" id="customStyleSelect" title="Custom styles" aria-label="Custom paragraph style">
+            <option value="">Custom style…</option>
+          </select>
+          <button class="ribbon-btn" id="manageStylesBtn" title="Manage custom styles">⚙</button>
         </div>
         <div class="group-label">Styles</div>
       </div>
@@ -564,6 +568,40 @@
         </table>
       </div>
       <footer><button class="btn primary" data-close-modal>Got it</button></footer>
+    </div>
+  </div>
+
+  <!-- Custom styles modal -->
+  <div class="modal" id="stylesModal" hidden>
+    <div class="modal-card lg">
+      <header><h3>Custom paragraph styles</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">Define styles you can apply to paragraphs from the Custom style dropdown.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label>Style name <input id="styleName" type="text" placeholder="Body Text 2" /></label>
+          <label>Base tag
+            <select id="styleBaseTag" class="select">
+              <option value="p">Paragraph</option>
+              <option value="h1">Heading 1</option>
+              <option value="h2">Heading 2</option>
+              <option value="h3">Heading 3</option>
+              <option value="h4">Heading 4</option>
+              <option value="blockquote">Blockquote</option>
+              <option value="pre">Pre / code</option>
+            </select>
+          </label>
+          <label style="grid-column:1/-1">CSS rules
+            <textarea id="styleCss" rows="4" spellcheck="false"
+              placeholder="font-family: Georgia, serif; font-size: 12pt; color: #333; line-height: 1.6;"></textarea>
+          </label>
+        </div>
+        <button class="btn" id="saveStyleBtn">Save style</button>
+        <hr/>
+        <ul id="stylesList" class="snippet-list"></ul>
+      </div>
+      <footer><button class="btn primary" data-close-modal>Done</button></footer>
     </div>
   </div>
 

@@ -2690,6 +2690,135 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Custom paragraph styles (Tier 1, gap #5)
+  // ============================================================
+  const STORE_STYLES = 'rodmanword:styles';
+  let customStyles = {};
+  try { customStyles = JSON.parse(localStorage.getItem(STORE_STYLES) || '{}'); } catch {}
+
+  function persistStyles() {
+    try { localStorage.setItem(STORE_STYLES, JSON.stringify(customStyles)); } catch {}
+  }
+
+  function styleClassName(name) {
+    return 'rwd-s-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  }
+
+  function applyCustomStylesheet() {
+    let style = document.getElementById('rwd-custom-styles');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'rwd-custom-styles';
+      document.head.appendChild(style);
+    }
+    let css = '';
+    Object.keys(customStyles).forEach((name) => {
+      const s = customStyles[name];
+      css += '.editor .' + styleClassName(name) + ' { ' + s.css + ' }\n';
+    });
+    style.textContent = css;
+    refreshCustomStylesDropdown();
+    refreshStylesList();
+  }
+
+  function refreshCustomStylesDropdown() {
+    const sel = $('#customStyleSelect');
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Custom style…</option>';
+    Object.keys(customStyles).forEach((name) => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+    sel.value = cur;
+  }
+
+  function refreshStylesList() {
+    const ul = $('#stylesList');
+    if (!ul) return;
+    ul.innerHTML = '';
+    const names = Object.keys(customStyles);
+    if (!names.length) {
+      ul.innerHTML = '<li class="empty">No custom styles yet.</li>';
+      return;
+    }
+    names.forEach((name) => {
+      const s = customStyles[name];
+      const li = document.createElement('li');
+      li.innerHTML =
+        '<span class="name">' + escapeHtml(name) +
+        ' <small style="color:var(--muted)">&lt;' + escapeHtml(s.baseTag) +
+        '&gt;</small></span>' +
+        '<span class="actions">' +
+          '<button data-act="delete">Delete</button>' +
+        '</span>';
+      li.querySelector('[data-act="delete"]').addEventListener('click', () => {
+        delete customStyles[name];
+        persistStyles();
+        applyCustomStylesheet();
+      });
+      ul.appendChild(li);
+    });
+  }
+
+  $('#manageStylesBtn')?.addEventListener('click', () => {
+    refreshStylesList();
+    openModal($('#stylesModal'));
+  });
+
+  $('#saveStyleBtn')?.addEventListener('click', () => {
+    const name = $('#styleName').value.trim();
+    const baseTag = $('#styleBaseTag').value;
+    const css = $('#styleCss').value.trim();
+    if (!name || !css) { toast('Name and CSS are required', 'error'); return; }
+    customStyles[name] = { baseTag, css };
+    persistStyles();
+    applyCustomStylesheet();
+    $('#styleName').value = '';
+    $('#styleCss').value = '';
+    toast('Style saved', 'success');
+  });
+
+  $('#customStyleSelect')?.addEventListener('change', (e) => {
+    const name = e.target.value;
+    if (!name) return;
+    const s = customStyles[name];
+    if (!s) return;
+    // Apply to the current paragraph: change its tag if needed and add the class.
+    const sel = window.getSelection();
+    if (!sel || !sel.anchorNode) return;
+    let n = sel.anchorNode;
+    if (n.nodeType !== 1) n = n.parentElement;
+    const block = n.closest('p, h1, h2, h3, h4, h5, h6, blockquote, pre, li, div');
+    if (!block || !editor.contains(block)) {
+      toast('Place the cursor in a paragraph first', 'info');
+      e.target.value = '';
+      return;
+    }
+    // Convert tag if different from baseTag
+    let target = block;
+    if (block.tagName.toLowerCase() !== s.baseTag) {
+      const newEl = document.createElement(s.baseTag);
+      newEl.innerHTML = block.innerHTML;
+      Array.from(block.attributes).forEach((a) =>
+        newEl.setAttribute(a.name, a.value));
+      block.parentNode.replaceChild(newEl, block);
+      target = newEl;
+    }
+    // Strip any other rwd-s-* classes
+    target.classList.forEach((c) => {
+      if (c.indexOf('rwd-s-') === 0) target.classList.remove(c);
+    });
+    target.classList.add(styleClassName(name));
+    e.target.value = '';
+    queueAutosave();
+  });
+
+  applyCustomStylesheet();
+
+  // ============================================================
   // FEATURE: Citations + bibliography (Tier 1, gap #8)
   // ============================================================
   const STORE_CITES = 'rodmanword:citations';
