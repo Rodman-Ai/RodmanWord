@@ -364,6 +364,10 @@
             <span>Restrict editing</span>
           </label>
           <label class="control switch">
+            <input type="checkbox" id="grammarToggle" />
+            <span>Grammar</span>
+          </label>
+          <label class="control switch">
             <input type="checkbox" id="spellToggle" checked />
             <span>Spell check</span>
           </label>
@@ -609,6 +613,16 @@
       <footer><button class="btn primary" data-close-modal>Got it</button></footer>
     </div>
   </div>
+
+  <!-- Grammar suggestions panel -->
+  <aside class="comments-pane" id="grammarPane" hidden style="top: 110px; right: 312px">
+    <header>
+      <span>Grammar</span>
+      <span id="grammarCount" class="muted" style="margin-left:auto;font-size:11px"></span>
+      <button class="icon-btn" id="grammarCloseBtn" aria-label="Close">✕</button>
+    </header>
+    <ol id="grammarList"></ol>
+  </aside>
 
   <!-- Review panel (track changes) -->
   <aside class="comments-pane" id="reviewPane" hidden style="top: 380px">

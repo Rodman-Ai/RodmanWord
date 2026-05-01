@@ -499,6 +499,13 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Grammar marks */
+.editor .rwd-grammar {
+  text-decoration: underline wavy #d23f31;
+  text-underline-offset: 3px;
+  background: rgba(210, 63, 49, 0.06);
+}
+
 /* Drawing shapes */
 .editor .rwd-shape {
   display: inline-block;

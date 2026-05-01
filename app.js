@@ -2694,6 +2694,210 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Grammar check (Tier 2, gap #11)
+  // ============================================================
+  // A handful of simple rules that catch common writing problems.
+  // Each rule returns an array of { start, end, message, suggestion }
+  // applied against the editor's plain text.
+  const GRAMMAR_RULES = [
+    {
+      name: 'Doubled word',
+      re: /\b(\w+)\s+\1\b/gi,
+      message: 'Doubled word — possible typo',
+      suggest: (m) => m[1],
+    },
+    {
+      name: 'Weasel word',
+      re: /\b(very|really|quite|just|basically|essentially|literally|actually|simply)\s/gi,
+      message: 'Weasel word — consider deleting',
+      suggest: () => '',
+    },
+    {
+      name: 'Passive voice',
+      re: /\b(is|was|were|are|be|been|being)\s+(\w+ed|done|made|seen|taken|given|written|known|shown|held|kept|sent)\b/gi,
+      message: 'Passive voice — prefer active',
+    },
+    {
+      name: 'Sentence starts lower-case',
+      re: /(^|[.!?]\s+)([a-z])/g,
+      message: 'Sentence should start with a capital letter',
+      suggest: (m) => m[1] + m[2].toUpperCase(),
+      offsetGroup: 2,
+    },
+    {
+      name: 'Missing space after punctuation',
+      re: /([.!?,;:])([A-Za-z])/g,
+      message: 'Missing space after punctuation',
+      suggest: (m) => m[1] + ' ' + m[2],
+    },
+    {
+      name: 'Two spaces',
+      re: /  +/g,
+      message: 'Multiple spaces — collapse to one',
+      suggest: () => ' ',
+    },
+  ];
+
+  function findGrammarIssues(text) {
+    const out = [];
+    GRAMMAR_RULES.forEach((rule) => {
+      let m;
+      rule.re.lastIndex = 0;
+      while ((m = rule.re.exec(text)) !== null) {
+        let start = m.index;
+        let end = m.index + m[0].length;
+        let matchText = m[0];
+        if (rule.offsetGroup) {
+          // The match has a leading capture we don't want to highlight
+          const off = m[0].indexOf(m[rule.offsetGroup], 0);
+          start = m.index + off;
+          end = start + m[rule.offsetGroup].length;
+          matchText = m[rule.offsetGroup];
+        }
+        out.push({
+          start, end,
+          rule: rule.name,
+          message: rule.message,
+          original: matchText,
+          suggestion: rule.suggest ? rule.suggest(m) : null,
+        });
+        if (rule.re.lastIndex === m.index) rule.re.lastIndex++;
+      }
+    });
+    return out.sort((a, b) => a.start - b.start);
+  }
+
+  let grammarIssues = [];
+
+  function clearGrammarMarks() {
+    editor.querySelectorAll('.rwd-grammar').forEach((m) => {
+      const p = m.parentNode;
+      while (m.firstChild) p.insertBefore(m.firstChild, m);
+      p.removeChild(m);
+      p.normalize();
+    });
+  }
+
+  function selectRangeAt(start, end) {
+    let pos = 0;
+    const range = document.createRange();
+    let started = false;
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = walker.nextNode())) {
+      const len = n.nodeValue.length;
+      if (!started && pos + len >= start) {
+        range.setStart(n, start - pos);
+        started = true;
+      }
+      if (started && pos + len >= end) {
+        range.setEnd(n, end - pos);
+        return range;
+      }
+      pos += len;
+    }
+    return null;
+  }
+
+  function runGrammar() {
+    clearGrammarMarks();
+    const text = editor.innerText;
+    grammarIssues = findGrammarIssues(text);
+    // Highlight by walking issues in reverse so earlier offsets stay valid
+    grammarIssues.slice().reverse().forEach((iss) => {
+      const r = selectRangeAt(iss.start, iss.end);
+      if (!r) return;
+      const span = document.createElement('span');
+      span.className = 'rwd-grammar';
+      span.dataset.rule = iss.rule;
+      span.dataset.message = iss.message;
+      try {
+        span.appendChild(r.extractContents());
+        r.insertNode(span);
+      } catch {}
+    });
+    rebuildGrammarPane();
+  }
+
+  function rebuildGrammarPane() {
+    const pane = $('#grammarPane');
+    if (!pane || pane.hidden) return;
+    const list = $('#grammarList');
+    list.innerHTML = '';
+    $('#grammarCount').textContent = grammarIssues.length + ' issue' +
+      (grammarIssues.length === 1 ? '' : 's');
+    if (!grammarIssues.length) {
+      list.innerHTML = '<li class="empty">No grammar issues detected.</li>';
+      return;
+    }
+    grammarIssues.forEach((iss) => {
+      const li = document.createElement('li');
+      li.innerHTML =
+        '<div class="selection-preview">' + escapeHtml(iss.rule) + '</div>' +
+        '<div class="last-reply"><b>"' + escapeHtml(iss.original) + '"</b> — ' +
+        escapeHtml(iss.message) + '</div>' +
+        (iss.suggestion != null
+          ? '<div style="margin-top:6px;display:flex;gap:6px">' +
+            '<button class="btn" data-act="apply">Apply</button>' +
+            '<button class="btn" data-act="ignore">Ignore</button>' +
+            '</div>'
+          : '<div style="margin-top:6px"><button class="btn" data-act="ignore">Ignore</button></div>');
+      const apply = li.querySelector('[data-act="apply"]');
+      apply?.addEventListener('click', () => {
+        // Apply suggestion to the corresponding span
+        const spans = editor.querySelectorAll('.rwd-grammar');
+        // Find the first matching span by message text
+        for (const s of spans) {
+          if (s.textContent === iss.original) {
+            s.outerHTML = escapeHtml(iss.suggestion);
+            break;
+          }
+        }
+        runGrammar();
+        queueAutosave();
+      });
+      li.querySelector('[data-act="ignore"]')?.addEventListener('click', () => {
+        // Just remove the marker for this occurrence
+        const spans = editor.querySelectorAll('.rwd-grammar');
+        for (const s of spans) {
+          if (s.textContent === iss.original) {
+            const p = s.parentNode;
+            while (s.firstChild) p.insertBefore(s.firstChild, s);
+            p.removeChild(s);
+            break;
+          }
+        }
+        // Remove from issues list
+        grammarIssues = grammarIssues.filter((x) => x !== iss);
+        rebuildGrammarPane();
+      });
+      list.appendChild(li);
+    });
+  }
+
+  $('#grammarToggle')?.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      $('#grammarPane').hidden = false;
+      runGrammar();
+    } else {
+      $('#grammarPane').hidden = true;
+      clearGrammarMarks();
+    }
+  });
+  $('#grammarCloseBtn')?.addEventListener('click', () => {
+    $('#grammarPane').hidden = true;
+    if ($('#grammarToggle')) $('#grammarToggle').checked = false;
+    clearGrammarMarks();
+  });
+
+  // Re-run on input (debounced) when the panel is open
+  editor.addEventListener('input', () => {
+    if (!$('#grammarPane') || $('#grammarPane').hidden) return;
+    clearTimeout(window.__rwdGrT);
+    window.__rwdGrT = setTimeout(runGrammar, 800);
+  });
+
+  // ============================================================
   // FEATURE: Drawing shapes + text boxes (Tier 2, gap #17)
   // ============================================================
   function insertShape(svg) {
