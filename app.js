@@ -2898,6 +2898,141 @@ ${editor.innerHTML}
   });
 
   // ============================================================
+  // FEATURE: Image crop + effects (Tier 3, gap #29)
+  // ============================================================
+  let cropTarget = null;
+  function openCropModal(img) {
+    if (!img) return;
+    cropTarget = img;
+    const cm = $('#cropModal');
+    const ci = $('#cropImg');
+    const cr = $('#cropRect');
+    ci.src = img.src;
+    cr.style.display = 'none';
+    openModal(cm);
+
+    let dragging = false, sx = 0, sy = 0, ex = 0, ey = 0;
+    function onDown(e) {
+      const r = ci.getBoundingClientRect();
+      sx = e.clientX - r.left; sy = e.clientY - r.top;
+      ex = sx; ey = sy;
+      dragging = true;
+      cr.style.display = 'block';
+      updateRect();
+    }
+    function onMove(e) {
+      if (!dragging) return;
+      const r = ci.getBoundingClientRect();
+      ex = Math.max(0, Math.min(r.width, e.clientX - r.left));
+      ey = Math.max(0, Math.min(r.height, e.clientY - r.top));
+      updateRect();
+    }
+    function onUp() { dragging = false; }
+    function updateRect() {
+      const x = Math.min(sx, ex), y = Math.min(sy, ey);
+      const w = Math.abs(ex - sx), h = Math.abs(ey - sy);
+      cr.style.left = x + 'px';
+      cr.style.top = y + 'px';
+      cr.style.width = w + 'px';
+      cr.style.height = h + 'px';
+    }
+    ci.onmousedown = onDown;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+
+    $('#cropApplyBtn').onclick = () => {
+      if (!cropTarget) { closeModal(cm); return; }
+      const x = Math.min(sx, ex), y = Math.min(sy, ey);
+      const w = Math.abs(ex - sx), h = Math.abs(ey - sy);
+      if (w < 5 || h < 5) { toast('Drag to draw a crop region', 'info'); return; }
+      const scaleX = ci.naturalWidth / ci.clientWidth;
+      const scaleY = ci.naturalHeight / ci.clientHeight;
+      const sourceImg = new Image();
+      sourceImg.crossOrigin = 'anonymous';
+      sourceImg.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(w * scaleX);
+        canvas.height = Math.round(h * scaleY);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(sourceImg,
+          x * scaleX, y * scaleY, w * scaleX, h * scaleY,
+          0, 0, canvas.width, canvas.height);
+        try {
+          cropTarget.src = canvas.toDataURL('image/png');
+        } catch (err) {
+          toast('Could not crop (image may be cross-origin)', 'error');
+          return;
+        }
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        closeModal(cm);
+        queueAutosave();
+      };
+      sourceImg.onerror = () => {
+        toast('Could not load image for cropping', 'error');
+      };
+      sourceImg.src = cropTarget.src;
+    };
+  }
+
+  let effectsTarget = null;
+  const FX_KEYS = [
+    ['Brightness', 'brightness', '%', 100],
+    ['Contrast', 'contrast', '%', 100],
+    ['Saturate', 'saturate', '%', 100],
+    ['Blur', 'blur', 'px', 0],
+    ['Hue', 'hue-rotate', '°', 0],
+    ['Gray', 'grayscale', '%', 0],
+    ['Sepia', 'sepia', '%', 0],
+  ];
+
+  function buildFilterFromInputs() {
+    return FX_KEYS.map(([id, fn, unit]) => {
+      const v = $('#fx' + id).value;
+      return fn + '(' + v + unit + ')';
+    }).join(' ');
+  }
+
+  function openEffectsModal(img) {
+    if (!img) return;
+    effectsTarget = img;
+    // Parse existing filter if any
+    const cur = img.style.filter || '';
+    FX_KEYS.forEach(([id, fn, unit, def]) => {
+      const re = new RegExp(fn.replace(/-/g, '\\-') + '\\(([^)]+)\\)');
+      const m = cur.match(re);
+      const v = m ? parseFloat(m[1]) : def;
+      const inp = $('#fx' + id);
+      const lab = $('#fx' + id + 'Val');
+      inp.value = v;
+      lab.textContent = v + unit;
+      inp.oninput = () => {
+        lab.textContent = inp.value + unit;
+        if (effectsTarget) effectsTarget.style.filter = buildFilterFromInputs();
+      };
+    });
+    $('#fxResetBtn').onclick = () => {
+      FX_KEYS.forEach(([id, , unit, def]) => {
+        const inp = $('#fx' + id);
+        const lab = $('#fx' + id + 'Val');
+        inp.value = def;
+        lab.textContent = def + unit;
+      });
+      if (effectsTarget) effectsTarget.style.filter = '';
+      queueAutosave();
+    };
+    openModal($('#effectsModal'));
+  }
+
+  // Persist filter changes when modal closes
+  $('#effectsModal')?.addEventListener('click', (e) => {
+    if (e.target.matches('[data-close-modal]') ||
+        e.target.closest('[data-close-modal]')) {
+      queueAutosave();
+    }
+  });
+
+  // ============================================================
   // FEATURE: Drawing shapes + text boxes (Tier 2, gap #17)
   // ============================================================
   function insertShape(svg) {
@@ -4981,6 +5116,10 @@ ${editor.innerHTML}
           cap.textContent = v;
         }
       }
+    } else if (a === 'crop') {
+      openCropModal(selectedImg);
+    } else if (a === 'effects') {
+      openEffectsModal(selectedImg);
     } else if (a && a.indexOf('wrap-') === 0) {
       const kind = a.slice(5);
       const wrapClasses = ['rwd-wrap-square','rwd-wrap-tight','rwd-wrap-through',
