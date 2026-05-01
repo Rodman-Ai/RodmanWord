@@ -473,6 +473,28 @@ body {
 .editor .rwd-footnotes ol { padding-left: 20px; }
 .editor .rwd-footnotes li { margin: 0.2em 0; }
 
+/* Captions */
+.editor .rwd-caption {
+  display: block;
+  font-size: 0.9em;
+  font-style: italic;
+  color: var(--muted);
+  text-align: center;
+  margin: 4px 0 12px;
+}
+.editor .rwd-caption b { color: var(--text); font-style: normal; font-weight: 600; }
+
+/* Cross-references */
+.editor .rwd-xref {
+  color: var(--primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+.editor .rwd-xref:hover {
+  background: var(--active);
+}
+
 /* Live fields */
 .editor [data-field] {
   background: rgba(43, 87, 154, 0.08);

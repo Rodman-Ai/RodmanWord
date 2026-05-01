@@ -2552,7 +2552,154 @@ ${editor.innerHTML}
         try { el.textContent = fn(el); } catch {}
       }
     });
+    renumberCaptions();
+    refreshCrossRefs();
   }
+
+  // Renumber every .rwd-caption span in document order, grouped by seq type
+  function renumberCaptions() {
+    const counters = {};
+    editor.querySelectorAll('.rwd-caption').forEach((el) => {
+      const seq = (el.dataset.seq || 'item').toLowerCase();
+      counters[seq] = (counters[seq] || 0) + 1;
+      const n = counters[seq];
+      const label = (el.dataset.label || (seq.charAt(0).toUpperCase() + seq.slice(1)));
+      const text = (el.dataset.text || '').trim();
+      el.innerHTML = '<b>' + escapeHtml(label) + ' ' + n + '</b>' +
+        (text ? ' — ' + escapeHtml(text) : '');
+      // Auto-id for cross-refs that don't already have one
+      if (!el.id) el.id = 'rwd-cap-' + seq + '-' + n;
+      el.dataset.num = String(n);
+    });
+  }
+
+  // Resolve every .rwd-xref to its current target text
+  function refreshCrossRefs() {
+    const targets = collectXrefTargets();
+    editor.querySelectorAll('.rwd-xref').forEach((a) => {
+      const id = a.dataset.target;
+      const kind = a.dataset.kind || 'auto';
+      const t = targets[id];
+      if (!t) {
+        a.textContent = '[broken reference]';
+        return;
+      }
+      if (kind === 'page') a.textContent = String(t.page);
+      else if (kind === 'number') a.textContent = String(t.number);
+      else if (kind === 'text') a.textContent = t.text;
+      else a.textContent = (t.number ? t.number + ' ' : '') + (t.text || '');
+      a.title = 'Cross-reference to ' + (t.text || id);
+    });
+  }
+
+  function collectXrefTargets() {
+    const map = {};
+    // Headings
+    editor.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((h) => {
+      if (!h.id) return;
+      map[h.id] = {
+        text: h.textContent.trim(),
+        number: h.dataset.num || '',
+        page: pageNumberOf(h),
+      };
+    });
+    // Captions
+    editor.querySelectorAll('.rwd-caption').forEach((c) => {
+      if (!c.id) return;
+      const label = c.dataset.label || (c.dataset.seq || 'Item');
+      map[c.id] = {
+        text: c.dataset.text || c.textContent.replace(/^\S+\s\d+\s*[—-]?\s*/, ''),
+        number: (label.charAt(0).toUpperCase() + label.slice(1).toLowerCase()) +
+                ' ' + (c.dataset.num || ''),
+        page: pageNumberOf(c),
+      };
+    });
+    // Bookmarks
+    editor.querySelectorAll('.rwd-bookmark').forEach((b) => {
+      if (!b.id) return;
+      map[b.id] = {
+        text: b.dataset.name || b.textContent,
+        number: '',
+        page: pageNumberOf(b),
+      };
+    });
+    return map;
+  }
+
+  function pageNumberOf(el) {
+    let n = 1;
+    editor.querySelectorAll('hr.page-break, .rwd-section-break').forEach((b) => {
+      if (b.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) n++;
+    });
+    return n;
+  }
+
+  // Insert caption (after current paragraph)
+  $('#captionBtn')?.addEventListener('click', () => {
+    const seq = prompt('Caption type (figure / table / equation / item):', 'figure');
+    if (!seq) return;
+    const label = seq.charAt(0).toUpperCase() + seq.slice(1).toLowerCase();
+    const text = prompt('Caption text (optional):', '') || '';
+    const html = '<p class="rwd-caption" data-seq="' + escapeHtml(seq.toLowerCase()) +
+      '" data-label="' + escapeHtml(label) + '" data-text="' +
+      escapeHtml(text) + '"></p><p><br/></p>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    refreshFields();
+    queueAutosave();
+  });
+
+  // Insert cross-reference: pick from a list
+  $('#crossRefBtn')?.addEventListener('click', () => {
+    const targets = collectXrefTargets();
+    const ids = Object.keys(targets);
+    if (!ids.length) {
+      toast('Add a heading, caption, or bookmark first', 'info');
+      return;
+    }
+    const lines = ids.map((id, i) =>
+      (i + 1) + '. ' + (targets[id].number || targets[id].text).slice(0, 60));
+    const pick = prompt(
+      'Reference target — type number:\n' + lines.join('\n'),
+      '1'
+    );
+    const idx = parseInt(pick, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= ids.length) return;
+    const kind = prompt(
+      'Show as: auto / number / text / page (default: auto)',
+      'auto'
+    ) || 'auto';
+    const id = ids[idx];
+    const html = '<a class="rwd-xref" href="#' + escapeHtml(id) +
+      '" data-target="' + escapeHtml(id) + '" data-kind="' +
+      escapeHtml(kind) + '" contenteditable="false">…</a>';
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    refreshFields();
+    queueAutosave();
+  });
+
+  // Click an xref to jump to its target
+  editor.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('.rwd-xref');
+    if (!a) return;
+    e.preventDefault();
+    const id = a.dataset.target;
+    const t = id && document.getElementById(id);
+    if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  // Click a caption to edit its text
+  editor.addEventListener('dblclick', (e) => {
+    const cap = e.target.closest && e.target.closest('.rwd-caption');
+    if (!cap) return;
+    e.preventDefault();
+    const v = prompt('Caption text:', cap.dataset.text || '');
+    if (v == null) return;
+    cap.dataset.text = v;
+    refreshFields();
+    queueAutosave();
+  });
 
   let __rwdFieldT;
   editor.addEventListener('input', () => {
