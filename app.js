@@ -972,8 +972,261 @@
     }
   }
 
-  $$('.backstage-side button[data-action]').forEach((btn) => {
-    btn.addEventListener('click', () => setBackstageView(btn.dataset.action));
+  // ---------- New backstage: rail + dynamic right pane ----------
+  // Each section is { title, render(content) }. Render functions
+  // populate the right pane with tile cards; each tile fires the
+  // existing setBackstageView() with its data-action so every wrap
+  // installed by feature blocks below still runs.
+  const BACKSTAGE_SECTIONS = {
+    home: {
+      title: 'Home',
+      render(content) {
+        content.innerHTML = '';
+        const wrap = document.createElement('div');
+        wrap.className = 'backstage-section';
+        // Quick-action row
+        const quick = document.createElement('div');
+        quick.className = 'backstage-quick-row';
+        [
+          { ico: '📄', label: 'New', section: 'new' },
+          { ico: '📂', label: 'Open from device', action: 'open' },
+          { ico: '💾', label: 'Save .rwd', action: 'save' },
+          { ico: '🖨', label: 'Print', action: 'print' },
+        ].forEach((q) => {
+          const b = document.createElement('button');
+          b.className = 'btn primary';
+          b.textContent = q.ico + ' ' + q.label;
+          b.addEventListener('click', () => {
+            if (q.section) renderBackstageSection(q.section);
+            else setBackstageView(q.action);
+          });
+          quick.appendChild(b);
+        });
+        wrap.appendChild(quick);
+        // Recent files
+        const recentBox = document.createElement('div');
+        recentBox.className = 'backstage-recent';
+        let list = [];
+        try { list = JSON.parse(localStorage.getItem(STORE_RECENT) || '[]'); } catch {}
+        recentBox.innerHTML = '<header>Recent documents</header>';
+        const ol = document.createElement('ol');
+        if (!list.length) {
+          ol.innerHTML = '<li><button disabled>(No recent documents — saved files appear here.)</button></li>';
+        } else {
+          list.slice(0, 8).forEach((item) => {
+            const li = document.createElement('li');
+            const dt = new Date(item.at);
+            const sizeStr = item.size != null
+              ? (item.size < 1024 ? item.size + ' B' : (item.size / 1024).toFixed(1) + ' KB')
+              : '';
+            li.innerHTML = '<button>📄 <b>' + escapeHtml(item.title) +
+              '</b><span class="meta">' + dt.toLocaleString() +
+              (sizeStr ? ' · ' + sizeStr : '') + '</span></button>';
+            ol.appendChild(li);
+          });
+        }
+        recentBox.appendChild(ol);
+        wrap.appendChild(recentBox);
+        content.appendChild(wrap);
+      },
+    },
+
+    new: {
+      title: 'New',
+      render() {
+        // Reuse the existing renderTemplates() which writes into
+        // backstageContent.
+        renderTemplates();
+      },
+    },
+
+    open: {
+      title: 'Open',
+      tiles: [
+        { ico: '📂', label: 'Open from device…', desc: 'Browse for a .rwd, .docx, .pdf, .html, .txt, .md, .rtf, .odt, .epub, or .rwd.enc file.', action: 'open' },
+        { ico: '🗂', label: 'Open from File System…', desc: 'Use the modern File System Access API and keep a live handle to the file on disk.', action: 'open-fs' },
+        { ico: '🕓', label: 'Recent…', desc: 'Show every document you’ve saved or opened recently.', action: 'recent' },
+      ],
+    },
+
+    save: {
+      title: 'Save / Save As',
+      tiles: [
+        { ico: '💾', label: 'Save (.rwd)', desc: 'Download the document as a RodmanWord native .rwd file.', action: 'save' },
+        { ico: '🗂', label: 'Save to file…', desc: 'Save directly back to the same file via File System Access.', action: 'save-fs' },
+        { ico: '🔒', label: 'Save with password…', desc: 'Encrypt the .rwd with AES-GCM derived from your passphrase.', action: 'encrypt' },
+        { ico: '⭐', label: 'Save as template', desc: 'Add the current document to your template gallery.', action: 'save-template' },
+      ],
+    },
+
+    print: {
+      title: 'Print',
+      tiles: [
+        { ico: '🖨', label: 'Print / Save as PDF', desc: 'Open the browser print dialog. Choose “Save as PDF” to keep a copy.', action: 'print' },
+        { ico: '👁', label: 'Print preview', desc: 'On-screen preview using the current page size and margins.', action: 'printpreview' },
+        { ico: '📤', label: 'Export PDF', desc: 'Generate a real .pdf using the built-in PDF writer.', action: 'export-pdf' },
+      ],
+    },
+
+    share: {
+      title: 'Share',
+      tiles: [
+        { ico: '🔗', label: 'Share link', desc: 'Encode the document into a URL hash and copy it to the clipboard.', action: 'share' },
+        { ico: '👁', label: 'Share read-only', desc: 'Recipient opens a locked view: editing disabled, comments disabled.', action: 'share-readonly' },
+        { ico: '💬', label: 'Share comment-only', desc: 'Recipient can read the document and add comments, but not edit it.', action: 'share-comments' },
+        { ico: '🤝', label: 'Collaborate (P2P)…', desc: 'Direct WebRTC connection. Manual handshake; no server.', action: 'collab' },
+        { ico: '✉', label: 'Email this doc', desc: 'Pre-fill an email with the title and body via mailto:.', action: 'email-doc' },
+        { ico: '#', label: 'Copy Slack-Markdown', desc: 'Copy the document as Slack-flavoured Markdown to the clipboard.', action: 'send-slack' },
+      ],
+    },
+
+    cloud: {
+      title: 'Cloud sync',
+      tiles: [
+        { ico: '☁', label: 'GitHub Gist…', desc: 'Round-trip the .rwd payload through a private gist with your PAT.', action: 'cloud-sync' },
+        { ico: '🌐', label: 'WebDAV / Nextcloud…', desc: 'Upload / download via PUT / GET with HTTP Basic auth.', action: 'webdav-sync' },
+      ],
+    },
+
+    export: {
+      title: 'Export',
+      tiles: [
+        { ico: '📝', label: 'Word (.docx)', desc: 'Round-trip OOXML with headers, footers, fields, and styles.', action: 'export-docx' },
+        { ico: '📕', label: 'PDF', desc: 'Built-in PDF writer with the standard 14 Type-1 fonts.', action: 'export-pdf' },
+        { ico: '🌐', label: 'HTML', desc: 'Self-contained HTML with embedded styles.', action: 'export-html' },
+        { ico: 'Md', label: 'Markdown', desc: 'GitHub-flavoured with optional YAML front-matter.', action: 'export-md' },
+        { ico: '📃', label: 'Plain text', desc: 'Strip every tag; keep paragraphs.', action: 'export-txt' },
+        { ico: '📦', label: 'OpenDocument (.odt)', desc: 'LibreOffice / OpenOffice native format.', action: 'export-odt' },
+        { ico: 'RT', label: 'RTF', desc: 'Rich Text Format for legacy word processors.', action: 'export-rtf' },
+        { ico: '📚', label: 'EPUB', desc: 'Split the document into chapters at H1 boundaries.', action: 'export-epub' },
+        { ico: 'AD', label: 'AsciiDoc', desc: 'Lightweight markup popular for technical writing.', action: 'export-asciidoc' },
+        { ico: 'TX', label: 'LaTeX', desc: 'Compile-ready .tex with article preamble.', action: 'export-latex' },
+      ],
+    },
+
+    info: {
+      title: 'Info',
+      tiles: [
+        { ico: 'ⓘ', label: 'Properties', desc: 'Title, author, subject, keywords, description, plus quick stats.', action: 'properties' },
+        { ico: '🕓', label: 'Version history', desc: 'Auto-snapshots every 2 minutes while you edit.', action: 'history' },
+        { ico: '🎯', label: 'Writing goal', desc: 'Set a target word count and watch the progress bar in the status bar.', action: 'goal' },
+        { ico: '🔎', label: 'Inspect document', desc: 'Find leftover comments, hidden text, watermarks, custom CSS, sensitive metadata.', action: 'inspect' },
+      ],
+    },
+
+    tools: {
+      title: 'Tools',
+      tiles: [
+        { ico: '✉🅼', label: 'Mail merge…', desc: 'CSV + {{Field}} placeholders → one document per row.', action: 'merge' },
+        { ico: '⇄', label: 'Compare with another version', desc: 'Line-level diff with add / delete colours.', action: 'compare' },
+        { ico: 'Md', label: 'Markdown live preview', desc: 'Split-pane: write Markdown, see HTML render in real time.', action: 'md-preview' },
+        { ico: '🌍', label: 'Translate…', desc: 'Open the document text in Google Translate / DeepL / Bing.', action: 'translate' },
+        { ico: '🎨', label: 'Document themes…', desc: 'Coordinated font and colour scheme across the document.', action: 'themes' },
+        { ico: '🅑', label: 'Brand kit…', desc: 'Logo, brand colours, fonts, and optional letterhead.', action: 'brandkit' },
+        { ico: '🎛', label: 'Custom CSS…', desc: 'Paste CSS that applies to the editor.', action: 'customcss' },
+        { ico: '🧰', label: 'Styles import / export', desc: 'Move custom paragraph styles between documents as JSON.', action: 'stylesio' },
+        { ico: '⭐', label: 'Save as template', desc: 'Add the current document to your template gallery.', action: 'save-template' },
+        { ico: '↺', label: 'Reset to template', desc: 'Re-apply the originating template’s typography to this document.', action: 'reset-template' },
+        { ico: '🧹', label: 'Style cleaner', desc: 'Strip every inline style and custom-style class assignment.', action: 'style-cleaner' },
+      ],
+    },
+
+    about: {
+      title: 'About',
+      tiles: [
+        { ico: '❓', label: 'About RodmanWord', desc: 'Version, source, license.', action: 'about' },
+      ],
+    },
+  };
+
+  function renderBackstageSection(name) {
+    const s = BACKSTAGE_SECTIONS[name];
+    if (!s) return;
+    backstageTitle.textContent = s.title;
+    // Highlight rail
+    $$('.backstage-side .backstage-rail button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.section === name);
+    });
+    // Render
+    if (typeof s.render === 'function') {
+      s.render(backstageContent);
+      return;
+    }
+    // Default: tile grid
+    backstageContent.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'backstage-section';
+    const grid = document.createElement('div');
+    grid.className = 'backstage-tile-grid';
+    s.tiles.forEach((t) => {
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'backstage-tile';
+      tile.dataset.action = t.action;
+      tile.dataset.searchable = (t.label + ' ' + (t.desc || '')).toLowerCase();
+      tile.innerHTML = '<span class="ico">' + t.ico + '</span>' +
+        '<span class="body"><b>' + escapeHtml(t.label) + '</b>' +
+        '<small>' + escapeHtml(t.desc || '') + '</small></span>';
+      tile.addEventListener('click', () => setBackstageView(t.action));
+      grid.appendChild(tile);
+    });
+    wrap.appendChild(grid);
+    backstageContent.appendChild(wrap);
+  }
+
+  // Wire the rail
+  $$('.backstage-rail button[data-section]').forEach((btn) => {
+    btn.addEventListener('click', () => renderBackstageSection(btn.dataset.section));
+  });
+
+  // The original `openBackstage()` calls setBackstageView('home'); we
+  // route that through the new section renderer instead.
+  openBackstage = function () {
+    backstage.hidden = false;
+    renderBackstageSection('home');
+    const s = $('#backstageSearch');
+    if (s) s.value = '';
+  };
+
+  // Backstage search — filters tiles across every section.
+  $('#backstageSearch')?.addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    if (!q) {
+      // Restore the active section's rendering as-is
+      const cur = document.querySelector('.backstage-rail button.active');
+      if (cur) renderBackstageSection(cur.dataset.section);
+      return;
+    }
+    // Build a synthetic "search results" view across every section
+    backstageTitle.textContent = 'Search results';
+    backstageContent.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'backstage-section';
+    const grid = document.createElement('div');
+    grid.className = 'backstage-tile-grid';
+    let count = 0;
+    Object.keys(BACKSTAGE_SECTIONS).forEach((sec) => {
+      const tiles = BACKSTAGE_SECTIONS[sec].tiles || [];
+      tiles.forEach((t) => {
+        const blob = (t.label + ' ' + (t.desc || '')).toLowerCase();
+        if (!blob.includes(q)) return;
+        count++;
+        const tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'backstage-tile';
+        tile.innerHTML = '<span class="ico">' + t.ico + '</span>' +
+          '<span class="body"><b>' + escapeHtml(t.label) + '</b>' +
+          '<small>' + escapeHtml(BACKSTAGE_SECTIONS[sec].title + ' · ' + (t.desc || '')) + '</small></span>';
+        tile.addEventListener('click', () => setBackstageView(t.action));
+        grid.appendChild(tile);
+      });
+    });
+    if (!count) {
+      wrap.innerHTML = '<p class="muted">No matching commands.</p>';
+    } else {
+      wrap.appendChild(grid);
+    }
+    backstageContent.appendChild(wrap);
   });
 
   // ---------- Document operations ----------
@@ -3130,6 +3383,12 @@ ${editor.innerHTML}
       if (action === 'webdav-sync') { closeBackstage(); openWebDAV(); return; }
       if (action === 'email-doc') { closeBackstage(); emailDoc(); return; }
       if (action === 'send-slack') { closeBackstage(); copySlackMarkdown(); return; }
+      if (action === 'inspect') {
+        closeBackstage();
+        if (typeof renderInspect === 'function') renderInspect();
+        openModal($('#inspectModal'));
+        return;
+      }
       return orig(action);
     };
   })(setBackstageView);

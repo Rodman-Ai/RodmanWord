@@ -644,54 +644,26 @@
   <div class="backstage" id="backstage" hidden>
     <aside class="backstage-side">
       <button class="back-btn" id="backCloseBtn" aria-label="Close menu">←</button>
-      <ul>
-        <li><button data-action="new">New</button></li>
-        <li><button data-action="open">Open…</button></li>
-        <li><button data-action="save">Save (.rwd)</button></li>
-        <li><button data-action="save-fs">Save to file…</button></li>
-        <li><button data-action="open-fs">Open from file…</button></li>
-        <li><button data-action="cloud-sync">Cloud sync (Gist)…</button></li>
-        <li><button data-action="share-readonly">Share read-only…</button></li>
-        <li><button data-action="share-comments">Share comment-only…</button></li>
-        <li><button data-action="webdav-sync">WebDAV / Nextcloud…</button></li>
-        <li><button data-action="email-doc">Email this doc…</button></li>
-        <li><button data-action="send-slack">Copy Slack-Markdown</button></li>
-        <li><button data-action="collab">Collaborate (P2P)…</button></li>
-        <li><button data-action="export-docx">Export Word (.docx)</button></li>
-        <li><button data-action="export-pdf">Export PDF</button></li>
-        <li><button data-action="export-html">Export HTML</button></li>
-        <li><button data-action="export-md">Export Markdown</button></li>
-        <li><button data-action="export-txt">Export Text</button></li>
-        <li><button data-action="export-odt">Export ODT</button></li>
-        <li><button data-action="export-rtf">Export RTF</button></li>
-        <li><button data-action="export-epub">Export EPUB</button></li>
-        <li><button data-action="export-asciidoc">Export AsciiDoc</button></li>
-        <li><button data-action="export-latex">Export LaTeX</button></li>
-        <li><button data-action="md-preview">Markdown live preview</button></li>
-        <li><button data-action="print">Print / PDF</button></li>
-        <li><button data-action="printpreview">Print preview</button></li>
-        <li><button data-action="recent">Recent</button></li>
-        <li><button data-action="history">Version history</button></li>
-        <li><button data-action="properties">Properties</button></li>
-        <li><button data-action="share">Share link</button></li>
-        <li><button data-action="goal">Writing goal</button></li>
-        <li><button data-action="merge">Mail merge</button></li>
-        <li><button data-action="compare">Compare…</button></li>
-        <li><button data-action="encrypt">Save encrypted</button></li>
-        <li><button data-action="customcss">Custom CSS</button></li>
-        <li><button data-action="themes">Document themes</button></li>
-        <li><button data-action="brandkit">Brand kit</button></li>
-        <li><button data-action="save-template">Save as template</button></li>
-        <li><button data-action="reset-template">Reset to template</button></li>
-        <li><button data-action="style-cleaner">Style cleaner</button></li>
-        <li><button data-action="stylesio">Styles import/export</button></li>
-        <li><button data-action="translate">Translate…</button></li>
-        <li><button data-action="about">About</button></li>
+      <div class="backstage-search-wrap">
+        <input type="search" id="backstageSearch" placeholder="🔍 Search File menu" />
+      </div>
+      <ul class="backstage-rail">
+        <li><button data-section="home" class="active">🏠 Home</button></li>
+        <li><button data-section="new">📄 New</button></li>
+        <li><button data-section="open">📂 Open</button></li>
+        <li><button data-section="save">💾 Save / Save As</button></li>
+        <li><button data-section="print">🖨 Print</button></li>
+        <li><button data-section="share">🔗 Share</button></li>
+        <li><button data-section="cloud">☁ Cloud sync</button></li>
+        <li><button data-section="export">📤 Export</button></li>
+        <li><button data-section="info">ⓘ Info</button></li>
+        <li><button data-section="tools">🛠 Tools</button></li>
+        <li><button data-section="about">❓ About</button></li>
       </ul>
     </aside>
     <main class="backstage-main" id="backstageMain">
-      <h1 id="backstageTitle">File</h1>
-      <div id="backstageContent">Choose a command on the left.</div>
+      <h1 id="backstageTitle">Home</h1>
+      <div id="backstageContent"></div>
     </main>
   </div>
 

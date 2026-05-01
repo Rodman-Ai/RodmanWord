@@ -1766,7 +1766,7 @@ body.marked-final .page-footer {
   display: flex;
 }
 .backstage-side {
-  width: 220px;
+  width: 240px;
   background: var(--primary); color: #fff;
   padding: 12px;
   display: flex; flex-direction: column; gap: 4px;
@@ -1780,6 +1780,120 @@ body.marked-final .page-footer {
   padding: 10px 14px; border-radius: 4px; cursor: pointer;
 }
 .backstage-side button:hover { background: rgba(255, 255, 255, 0.12); }
+.backstage-side .backstage-rail button.active {
+  background: rgba(255, 255, 255, 0.22);
+  font-weight: 600;
+}
+.backstage-search-wrap { padding: 4px 4px 8px; }
+.backstage-search-wrap input {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.backstage-search-wrap input::placeholder { color: rgba(255,255,255,0.7); }
+.backstage-search-wrap input:focus {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* Backstage right pane sections */
+.backstage-section { display: flex; flex-direction: column; gap: 18px; }
+.backstage-section h2 {
+  margin: 4px 0 0;
+  color: var(--primary);
+  font-weight: 500;
+  font-size: 18px;
+}
+.backstage-section p.muted { margin: 0; }
+.backstage-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.backstage-tile {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--ribbon-border);
+  border-radius: 6px;
+  background: var(--page-bg);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.backstage-tile:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.backstage-tile .ico {
+  font-size: 22px;
+  width: 32px;
+  flex-shrink: 0;
+  text-align: center;
+}
+.backstage-tile .body { flex: 1; min-width: 0; }
+.backstage-tile .body b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.backstage-tile .body small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.backstage-tile.dim { opacity: 0.35; pointer-events: none; }
+
+.backstage-quick-row {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.backstage-quick-row button.btn { padding: 8px 14px; }
+
+.backstage-recent {
+  border: 1px solid var(--ribbon-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.backstage-recent header {
+  padding: 8px 14px;
+  background: var(--ribbon-bg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--ribbon-border);
+}
+.backstage-recent ol {
+  list-style: none; margin: 0; padding: 0;
+  max-height: 260px; overflow-y: auto;
+}
+.backstage-recent li button {
+  width: 100%; text-align: left;
+  background: transparent; border: none;
+  padding: 10px 14px; cursor: pointer;
+  font: inherit; font-size: 13px;
+  color: var(--text);
+  border-bottom: 1px solid var(--ribbon-border);
+}
+.backstage-recent li:last-child button { border-bottom: none; }
+.backstage-recent li button:hover { background: var(--hover); }
+.backstage-recent .meta {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 2px;
+}
 .back-btn {
   background: rgba(255, 255, 255, 0.1) !important;
   width: 36px !important; height: 36px;
