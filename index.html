@@ -397,6 +397,7 @@
         <li><button data-action="export-md">Export Markdown</button></li>
         <li><button data-action="export-txt">Export Text</button></li>
         <li><button data-action="print">Print / PDF</button></li>
+        <li><button data-action="printpreview">Print preview</button></li>
         <li><button data-action="recent">Recent</button></li>
         <li><button data-action="history">Version history</button></li>
         <li><button data-action="properties">Properties</button></li>
@@ -643,6 +644,22 @@
         <ul id="stylesList" class="snippet-list"></ul>
       </div>
       <footer><button class="btn primary" data-close-modal>Done</button></footer>
+    </div>
+  </div>
+
+  <!-- Print preview modal -->
+  <div class="modal" id="printPreviewModal" hidden>
+    <div class="modal-card lg" style="max-width:880px">
+      <header><h3>Print preview</h3>
+        <button class="icon-btn" data-close-modal aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body" id="printPreviewBody"
+        style="background:#888;padding:18px;max-height:70vh;overflow:auto">
+      </div>
+      <footer>
+        <button class="btn" data-close-modal>Close</button>
+        <button class="btn primary" id="printFromPreviewBtn">Print…</button>
+      </footer>
     </div>
   </div>
 

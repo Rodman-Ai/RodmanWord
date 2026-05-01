@@ -882,6 +882,10 @@
         closeBackstage();
         setTimeout(() => { preparePrint(); window.print(); }, 100);
         break;
+      case 'printpreview':
+        closeBackstage();
+        showPrintPreview();
+        break;
       case 'recent':
         renderRecent();
         break;
@@ -2687,6 +2691,45 @@ ${editor.innerHTML}
     const id = a.dataset.target;
     const t = id && document.getElementById(id);
     if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  // ============================================================
+  // FEATURE: Print preview (Tier 2, gap #24)
+  // ============================================================
+  function showPrintPreview() {
+    const body = $('#printPreviewBody');
+    const sizes = {
+      a4: { w: '8.27in', h: '11.69in' },
+      letter: { w: '8.5in', h: '11in' },
+      legal: { w: '8.5in', h: '14in' },
+    };
+    const sz = sizes[pageSize.value] || sizes.a4;
+    const land = orientation.value === 'landscape';
+    const w = land ? sz.h : sz.w;
+    const h = land ? sz.w : sz.h;
+    const headerHtml = docHeader ? docHeader.innerHTML : '';
+    const footerHtml = docFooter ? docFooter.innerHTML : '';
+    const editorHtml = editor.innerHTML;
+    body.innerHTML =
+      '<div class="rwd-pp-page" style="width:' + w + ';min-height:' + h +
+      ';background:#fff;color:#222;margin:0 auto 18px;padding:1in;' +
+      'box-shadow:0 4px 14px rgba(0,0,0,0.4);font-family:Calibri,Arial,sans-serif;' +
+      'font-size:11pt;line-height:1.4;transform:scale(0.7);transform-origin:top center">' +
+      (headerHtml.trim()
+        ? '<div style="font-size:9pt;color:#666;border-bottom:1px solid #ccc;padding-bottom:4px;margin-bottom:14px">' +
+          headerHtml + '</div>'
+        : '') +
+      editorHtml +
+      (footerHtml.trim()
+        ? '<div style="font-size:9pt;color:#666;border-top:1px solid #ccc;padding-top:4px;margin-top:14px;text-align:center">' +
+          footerHtml + '</div>'
+        : '') +
+      '</div>';
+    openModal($('#printPreviewModal'));
+  }
+  $('#printFromPreviewBtn')?.addEventListener('click', () => {
+    closeModal($('#printPreviewModal'));
+    setTimeout(() => { preparePrint(); window.print(); }, 100);
   });
 
   // ============================================================
