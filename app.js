@@ -1,6 +1,80 @@
 (function () {
   'use strict';
 
+  // ===========================================================
+  //  RodmanWord — section index for app.js (10,693 lines)
+  // ===========================================================
+  //  This file is one big IIFE. Major regions, top to bottom:
+  //
+  //     1 –   30   Globals: RW_BUILD, $/$$, DOM cache, store keys
+  //    31 –  165   Ribbon: tab switching, dbl-click collapse,
+  //                inline ribbon dropdown menus
+  //   166 –  500   Editing core: selection helpers, exec(),
+  //                font / size / colour swatches (recent colours),
+  //                paragraph alignment + line/para spacing,
+  //                lists (bulleted, numbered, multi-level, custom
+  //                bullets, collapse-to-level), styles dropdown
+  //   501 –  640   View-tab basics: ruler, spell-check, theme
+  //                picker, ctrl-click links to open in a new tab
+  //   641 – 1450   Find & Replace (highlight all, regex, whole-
+  //                word, scope, format filter, saved searches)
+  //  1451 – 1900   Smart paste, autosave, init, undo/redo state,
+  //                double-click word → highlight all, default
+  //                font/size, recent files w/ size, context menu
+  //  1901 – 2065   Backstage: section router (`renderBackstageSection`,
+  //                `BACKSTAGE_SECTIONS`), search, Home/Open/Save/etc
+  //  2066 – 2400   Command palette, repeat-last, password export,
+  //                custom CSS, mini map, compare, define/thesaurus
+  //  2401 – 2900   Watermark, readability, mail merge, headers &
+  //                footers, bookmarks, pull quote, code block,
+  //                word art, sort selection, drop cap, auto-TOC,
+  //                footnotes
+  //  2901 – 3090   FOUNDATION: live-field engine — page/pages/
+  //                date/time/docTitle/author/wordCount and
+  //                cross-references / captions / citations refresh
+  //  3091 – 3290   Grammar check + grammar pane
+  //  3291 – 5520   100-feature-plan implementation, top-down by
+  //                section letter (M cloud → L interop → K view →
+  //                J search → I editing → H forms → G refs →
+  //                F templates → E images → D lists → C tables →
+  //                B doc model & styles)
+  //  5521 – 5900   Review tab restructure (#1–#10)
+  //  5901 – 6195   WebRTC P2P collab (Tier-1 #1)
+  //  6196 – 6800   Cloud/FS save+open, macros, translate, Smart
+  //                Compose, image crop+effects
+  //  6801 – 7270   Drawing shapes / text box, form fields +
+  //                document protection, print preview, outline
+  //                collapse, charts, tab stops, line/para spacing
+  //  7271 – 7900   Track changes (insertions/deletions/accept/
+  //                reject), section breaks, custom paragraph
+  //                styles, citations + bibliography
+  //  7901 – 8290   Equation editor (LaTeX → MathML), inline math,
+  //                writing-goal celebration, print page numbers
+  //  8291 – 8700   Format painter, clipboard, toast notifications,
+  //                custom confirm, link modal, drag-drop importer
+  //  8701 – 9075   Table mini-toolbar, image mini-toolbar,
+  //                outline pane, word-count modal, Markdown export
+  //  9076 – 9530   Version history, templates gallery, voice
+  //                dictation, emoji picker, focus mode, shortcuts
+  //                cheatsheet, read-aloud
+  //  9531 –10075   Document properties, writing goal, auto-correct,
+  //                smart auto-format helpers, move paragraph,
+  //                TSV/CSV smart paste, symbol shortcuts,
+  //                share link
+  // 10076 –10693   Lorem ipsum, reading mode, threaded comments,
+  //                comments side panel, quick parts, change case
+  //
+  //  Plug-in modules attach to `window`:
+  //     RodmanDocx   (docx.js)        OOXML save / load + ZIP utils
+  //     RodmanPdf    (pdfio.js)       PDF save / load
+  //     RodmanInterop(interop.js)     RTF / ODT / EPUB / AsciiDoc /
+  //                                   LaTeX / Markdown FM
+  //     RW_BUILD                      version + date + cache key
+  //
+  //  See ARCHITECTURE.md for the runtime model and FEATURES.md for
+  //  a full per-tab catalogue.
+  // ===========================================================
+
   // Single source of truth for the displayed version. Bump these
   // whenever you ship something users would call out as 'new'. The
   // service-worker cache version in sw.js should be kept in lock-step.
@@ -626,19 +700,18 @@
     dirtyDot.hidden = true;
   }
 
-  editor.addEventListener('input', queueAutosave);
-  editor.addEventListener('input', refreshEmptyState);
-  editor.addEventListener('input', markDirty);
-  docTitle.addEventListener('input', queueAutosave);
-  docTitle.addEventListener('input', markDirty);
-  if (docHeader) {
-    docHeader.addEventListener('input', queueAutosave);
-    docHeader.addEventListener('input', markDirty);
+  // One composite handler per editable surface so we don't pay the
+  // event-loop tax three times per keystroke.
+  function onEditorInput() {
+    queueAutosave();
+    refreshEmptyState();
+    markDirty();
   }
-  if (docFooter) {
-    docFooter.addEventListener('input', queueAutosave);
-    docFooter.addEventListener('input', markDirty);
-  }
+  function onTitleInput() { queueAutosave(); markDirty(); }
+  editor.addEventListener('input', onEditorInput);
+  docTitle.addEventListener('input', onTitleInput);
+  if (docHeader) docHeader.addEventListener('input', onTitleInput);
+  if (docFooter) docFooter.addEventListener('input', onTitleInput);
   refreshEmptyState();
 
   // beforeunload warning
@@ -1522,10 +1595,11 @@ ${editor.innerHTML}
       return;
     }
     const reader = new FileReader();
+    reader.onerror = () => toast('Could not read this file', 'error');
     reader.onload = () => {
-      const content = String(reader.result);
-      if (file.name.endsWith('.rwd') || file.type === 'application/json') {
-        try {
+      try {
+        const content = String(reader.result);
+        if (file.name.endsWith('.rwd') || file.type === 'application/json') {
           const data = JSON.parse(content);
           editor.innerHTML = sanitizeImported(data.html || '');
           docTitle.value = data.title || file.name.replace(/\.rwd$/, '');
@@ -1543,27 +1617,26 @@ ${editor.innerHTML}
           }
           applyResolvedClasses();
           rebuildCommentsPane();
-        } catch {
-          alert('Could not read this RodmanWord file.');
-          return;
+        } else if (/\.html?$/.test(file.name) || file.type.includes('html')) {
+          const tmp = document.createElement('div');
+          tmp.innerHTML = content;
+          const body = tmp.querySelector('body') || tmp;
+          editor.innerHTML = sanitizeImported(body.innerHTML);
+          docTitle.value = file.name.replace(/\.html?$/, '');
+        } else {
+          const escaped = escapeHtml(content)
+            .split(/\n{2,}/)
+            .map((p) => '<p>' + p.replace(/\n/g, '<br/>') + '</p>')
+            .join('');
+          editor.innerHTML = escaped;
+          docTitle.value = file.name.replace(/\.(txt|md)$/i, '');
         }
-      } else if (/\.html?$/.test(file.name) || file.type.includes('html')) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = content;
-        const body = tmp.querySelector('body') || tmp;
-        editor.innerHTML = sanitizeImported(body.innerHTML);
-        docTitle.value = file.name.replace(/\.html?$/, '');
-      } else {
-        const escaped = escapeHtml(content)
-          .split(/\n{2,}/)
-          .map((p) => '<p>' + p.replace(/\n/g, '<br/>') + '</p>')
-          .join('');
-        editor.innerHTML = escaped;
-        docTitle.value = file.name.replace(/\.txt$/, '');
+        addRecent(docTitle.value);
+        queueAutosave();
+        closeBackstage();
+      } catch (err) {
+        toast('Could not import this file: ' + err.message, 'error');
       }
-      addRecent(docTitle.value);
-      queueAutosave();
-      closeBackstage();
     };
     reader.readAsText(file);
     e.target.value = '';
