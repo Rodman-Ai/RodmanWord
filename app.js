@@ -2,66 +2,66 @@
   'use strict';
 
   // ===========================================================
-  //  RodmanWord — section index for app.js (10,693 lines)
+  //  RodmanWord — section index for app.js (~10,800 lines)
   // ===========================================================
-  //  This file is one big IIFE. Major regions, top to bottom:
+  //  This file is one big IIFE. Major regions, top to bottom.
+  //  Line numbers are approximate (±20). Re-derive after large
+  //  edits with: `grep -n '// \(FEATURE\|IMPROVEMENT\|FOUNDATION\):' app.js`.
   //
-  //     1 –   30   Globals: RW_BUILD, $/$$, DOM cache, store keys
-  //    31 –  165   Ribbon: tab switching, dbl-click collapse,
+  //     1 –   95   Globals: RW_BUILD, $/$$, DOM cache, store keys
+  //    96 –  245   Ribbon: tab switching, dbl-click collapse,
   //                inline ribbon dropdown menus
-  //   166 –  500   Editing core: selection helpers, exec(),
+  //   246 –  580   Editing core: selection helpers, exec(),
   //                font / size / colour swatches (recent colours),
   //                paragraph alignment + line/para spacing,
   //                lists (bulleted, numbered, multi-level, custom
   //                bullets, collapse-to-level), styles dropdown
-  //   501 –  640   View-tab basics: ruler, spell-check, theme
-  //                picker, ctrl-click links to open in a new tab
-  //   641 – 1450   Find & Replace (highlight all, regex, whole-
-  //                word, scope, format filter, saved searches)
-  //  1451 – 1900   Smart paste, autosave, init, undo/redo state,
-  //                double-click word → highlight all, default
-  //                font/size, recent files w/ size, context menu
-  //  1901 – 2065   Backstage: section router (`renderBackstageSection`,
-  //                `BACKSTAGE_SECTIONS`), search, Home/Open/Save/etc
-  //  2066 – 2400   Command palette, repeat-last, password export,
-  //                custom CSS, mini map, compare, define/thesaurus
-  //  2401 – 2900   Watermark, readability, mail merge, headers &
+  //   581 –  640   View-tab basics: spell-check, theme picker,
+  //                ctrl-click links to open in a new tab
+  //   641 – 2003   Find & Replace (highlight all, regex, whole-
+  //                word, scope, format filter, saved searches),
+  //                smart paste, autosave, init
+  //  2004 – 2138   Undo/redo button state, double-click word →
+  //                highlight all, default font/size, context menu,
+  //                recent files w/ size in backstage
+  //  2139 – 2900   Command palette, repeat-last, password export,
+  //                custom CSS, mini map, compare, define/thesaurus,
+  //                watermark, readability, mail merge, headers &
   //                footers, bookmarks, pull quote, code block,
-  //                word art, sort selection, drop cap, auto-TOC,
-  //                footnotes
-  //  2901 – 3090   FOUNDATION: live-field engine — page/pages/
-  //                date/time/docTitle/author/wordCount and
-  //                cross-references / captions / citations refresh
-  //  3091 – 3290   Grammar check + grammar pane
-  //  3291 – 5520   100-feature-plan implementation, top-down by
+  //                word art, sort selection
+  //  2901 – 3164   Drop cap, auto-TOC, footnotes, FOUNDATION:
+  //                live-field engine — page/pages/date/time/
+  //                docTitle/author/wordCount + cross-refs/captions
+  //  3165 – 3368   Grammar check + grammar pane
+  //  3369 – 5604   100-feature-plan implementation, top-down by
   //                section letter (M cloud → L interop → K view →
   //                J search → I editing → H forms → G refs →
   //                F templates → E images → D lists → C tables →
   //                B doc model & styles)
-  //  5521 – 5900   Review tab restructure (#1–#10)
-  //  5901 – 6195   WebRTC P2P collab (Tier-1 #1)
-  //  6196 – 6800   Cloud/FS save+open, macros, translate, Smart
+  //  5605 – 5979   Review tab restructure (#1–#10)
+  //  5980 – 6297   WebRTC P2P collab (Tier-1 #1)
+  //  6298 – 6907   Cloud/FS save+open, macros, translate, Smart
   //                Compose, image crop+effects
-  //  6801 – 7270   Drawing shapes / text box, form fields +
+  //  6908 – 7376   Drawing shapes / text box, form fields +
   //                document protection, print preview, outline
-  //                collapse, charts, tab stops, line/para spacing
-  //  7271 – 7900   Track changes (insertions/deletions/accept/
+  //                collapse, charts, tab stops, line/para spacing,
+  //                multi-level lists
+  //  7377 – 7933   Track changes (insertions/deletions/accept/
   //                reject), section breaks, custom paragraph
   //                styles, citations + bibliography
-  //  7901 – 8290   Equation editor (LaTeX → MathML), inline math,
+  //  7934 – 8475   Equation editor (LaTeX → MathML), inline math,
   //                writing-goal celebration, print page numbers
-  //  8291 – 8700   Format painter, clipboard, toast notifications,
+  //  8476 – 8694   Format painter, clipboard, toast notifications,
   //                custom confirm, link modal, drag-drop importer
-  //  8701 – 9075   Table mini-toolbar, image mini-toolbar,
-  //                outline pane, word-count modal, Markdown export
-  //  9076 – 9530   Version history, templates gallery, voice
-  //                dictation, emoji picker, focus mode, shortcuts
-  //                cheatsheet, read-aloud
-  //  9531 –10075   Document properties, writing goal, auto-correct,
-  //                smart auto-format helpers, move paragraph,
-  //                TSV/CSV smart paste, symbol shortcuts,
-  //                share link
-  // 10076 –10693   Lorem ipsum, reading mode, threaded comments,
+  //  8695 – 9076   Table mini-toolbar, image mini-toolbar
+  //  9077 – 9624   Outline pane resize, word-count modal, Markdown
+  //                export, version history, templates gallery,
+  //                voice dictation, emoji picker, focus mode
+  //  9625 –10046   Shortcuts cheatsheet, read-aloud, document
+  //                properties, writing goal, auto-correct
+  // 10047 –10252   Smart auto-format helpers, move paragraph,
+  //                TSV/CSV smart paste, symbol shortcuts, share link
+  // 10253 –10800   Lorem ipsum, reading mode, threaded comments,
   //                comments side panel, quick parts, change case
   //
   //  Plug-in modules attach to `window`:
@@ -3441,16 +3441,16 @@ ${editor.innerHTML}
     openModal($('#webdavModal'));
   }
   $('#wdSaveBtn')?.addEventListener('click', async () => {
-    const url = $('#wdUrl').value.trim();
-    const user = $('#wdUser').value.trim();
-    const pass = $('#wdPass').value;
-    const fn = $('#wdFile').value.trim();
-    if (!url || !user || !pass || !fn) { toast('Fill every field', 'error'); return; }
-    localStorage.setItem('rodmanword:wdUrl', url);
-    localStorage.setItem('rodmanword:wdUser', user);
-    localStorage.setItem('rodmanword:wdFile', fn);
-    $('#wdStatus').textContent = 'Uploading…';
     try {
+      const url = $('#wdUrl').value.trim();
+      const user = $('#wdUser').value.trim();
+      const pass = $('#wdPass').value;
+      const fn = $('#wdFile').value.trim();
+      if (!url || !user || !pass || !fn) { toast('Fill every field', 'error'); return; }
+      localStorage.setItem('rodmanword:wdUrl', url);
+      localStorage.setItem('rodmanword:wdUser', user);
+      localStorage.setItem('rodmanword:wdFile', fn);
+      $('#wdStatus').textContent = 'Uploading…';
       const res = await fetch(url.replace(/\/?$/, '/') + encodeURIComponent(fn), {
         method: 'PUT',
         headers: {
@@ -3468,13 +3468,13 @@ ${editor.innerHTML}
     }
   });
   $('#wdLoadBtn')?.addEventListener('click', async () => {
-    const url = $('#wdUrl').value.trim();
-    const user = $('#wdUser').value.trim();
-    const pass = $('#wdPass').value;
-    const fn = $('#wdFile').value.trim();
-    if (!url || !user || !pass || !fn) { toast('Fill every field', 'error'); return; }
-    $('#wdStatus').textContent = 'Downloading…';
     try {
+      const url = $('#wdUrl').value.trim();
+      const user = $('#wdUser').value.trim();
+      const pass = $('#wdPass').value;
+      const fn = $('#wdFile').value.trim();
+      if (!url || !user || !pass || !fn) { toast('Fill every field', 'error'); return; }
+      $('#wdStatus').textContent = 'Downloading…';
       const res = await fetch(url.replace(/\/?$/, '/') + encodeURIComponent(fn), {
         method: 'GET',
         headers: { 'Authorization': 'Basic ' + btoa(user + ':' + pass) },
@@ -3658,13 +3658,17 @@ ${editor.innerHTML}
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     if (/\.rtf$/i.test(file.name) || file.type === 'application/rtf') {
-      const text = await file.text();
-      editor.innerHTML = sanitizeImported(window.RodmanInterop.rtfImport(text));
-      docTitle.value = file.name.replace(/\.rtf$/i, '');
-      addRecent(docTitle.value);
-      queueAutosave();
+      try {
+        const text = await file.text();
+        editor.innerHTML = sanitizeImported(window.RodmanInterop.rtfImport(text));
+        docTitle.value = file.name.replace(/\.rtf$/i, '');
+        addRecent(docTitle.value);
+        queueAutosave();
+        toast('Imported .rtf', 'success');
+      } catch (err) {
+        toast('RTF import failed: ' + err.message, 'error');
+      }
       e.target.value = '';
-      toast('Imported .rtf', 'success');
       return;
     }
     if (/\.odt$/i.test(file.name) || file.type === 'application/vnd.oasis.opendocument.text') {
@@ -6172,6 +6176,13 @@ ${editor.innerHTML}
     };
   }
 
+  function collabFail(err) {
+    const msg = (err && err.message) || String(err);
+    toast('Collab error: ' + msg, 'error');
+    const el = $('#collabStatus');
+    if (el) el.textContent = '✗ ' + msg;
+  }
+
   async function startHost() {
     collabRole = 'host';
     collabName = $('#collabName').value.trim() || 'Host';
@@ -6180,18 +6191,22 @@ ${editor.innerHTML}
     $('#collabHostStep').hidden = false;
     $('#collabGuestStep').hidden = true;
     $('#collabStatus').textContent = 'Generating offer…';
-    collabConn = new RTCPeerConnection({ iceServers: STUN });
-    const ch = collabConn.createDataChannel('rwd', { ordered: true });
-    attachDataChannel(ch);
-    collabConn.onicegatheringstatechange = () => {
-      if (collabConn.iceGatheringState === 'complete') {
-        $('#collabOfferOut').value = compactSdp(collabConn.localDescription);
-        $('#collabStatus').textContent = 'Offer ready — share it with your guest';
-      }
-    };
-    const offer = await collabConn.createOffer();
-    await collabConn.setLocalDescription(offer);
-    $('#collabDisconnectBtn').hidden = false;
+    try {
+      collabConn = new RTCPeerConnection({ iceServers: STUN });
+      const ch = collabConn.createDataChannel('rwd', { ordered: true });
+      attachDataChannel(ch);
+      collabConn.onicegatheringstatechange = () => {
+        if (collabConn.iceGatheringState === 'complete') {
+          $('#collabOfferOut').value = compactSdp(collabConn.localDescription);
+          $('#collabStatus').textContent = 'Offer ready — share it with your guest';
+        }
+      };
+      const offer = await collabConn.createOffer();
+      await collabConn.setLocalDescription(offer);
+      $('#collabDisconnectBtn').hidden = false;
+    } catch (err) {
+      collabFail(err);
+    }
   }
 
   async function startGuest() {
@@ -6202,15 +6217,19 @@ ${editor.innerHTML}
     $('#collabHostStep').hidden = true;
     $('#collabGuestStep').hidden = false;
     $('#collabStatus').textContent = 'Paste host’s offer to begin';
-    collabConn = new RTCPeerConnection({ iceServers: STUN });
-    collabConn.ondatachannel = (ev) => attachDataChannel(ev.channel);
-    collabConn.onicegatheringstatechange = () => {
-      if (collabConn.iceGatheringState === 'complete' && collabConn.localDescription) {
-        $('#collabAnswerOut').value = compactSdp(collabConn.localDescription);
-        $('#collabStatus').textContent = 'Answer ready — send it back to the host';
-      }
-    };
-    $('#collabDisconnectBtn').hidden = false;
+    try {
+      collabConn = new RTCPeerConnection({ iceServers: STUN });
+      collabConn.ondatachannel = (ev) => attachDataChannel(ev.channel);
+      collabConn.onicegatheringstatechange = () => {
+        if (collabConn.iceGatheringState === 'complete' && collabConn.localDescription) {
+          $('#collabAnswerOut').value = compactSdp(collabConn.localDescription);
+          $('#collabStatus').textContent = 'Answer ready — send it back to the host';
+        }
+      };
+      $('#collabDisconnectBtn').hidden = false;
+    } catch (err) {
+      collabFail(err);
+    }
   }
 
   async function submitGuestOffer() {
@@ -6220,10 +6239,14 @@ ${editor.innerHTML}
     let desc;
     try { desc = expandSdp(raw); }
     catch { toast('Invalid offer code', 'error'); return; }
-    await collabConn.setRemoteDescription(desc);
-    const answer = await collabConn.createAnswer();
-    await collabConn.setLocalDescription(answer);
-    $('#collabStatus').textContent = 'Gathering ICE candidates…';
+    try {
+      await collabConn.setRemoteDescription(desc);
+      const answer = await collabConn.createAnswer();
+      await collabConn.setLocalDescription(answer);
+      $('#collabStatus').textContent = 'Gathering ICE candidates…';
+    } catch (err) {
+      collabFail(err);
+    }
   }
 
   async function acceptHostAnswer() {
@@ -6233,8 +6256,12 @@ ${editor.innerHTML}
     let desc;
     try { desc = expandSdp(raw); }
     catch { toast('Invalid answer code', 'error'); return; }
-    await collabConn.setRemoteDescription(desc);
-    $('#collabStatus').textContent = 'Connecting…';
+    try {
+      await collabConn.setRemoteDescription(desc);
+      $('#collabStatus').textContent = 'Connecting…';
+    } catch (err) {
+      collabFail(err);
+    }
   }
 
   function disconnectCollab() {
@@ -6386,17 +6413,17 @@ ${editor.innerHTML}
   }
 
   $('#cloudSaveBtn')?.addEventListener('click', async () => {
-    const token = $('#ghToken').value.trim();
-    if (!token) { toast('Token required', 'error'); return; }
-    localStorage.setItem('rodmanword:ghToken', token);
-    const gistId = $('#ghGistId').value.trim();
-    const filename = sanitizeFileName(docTitle.value) + '.rwd';
-    const body = {
-      description: 'RodmanWord — ' + docTitle.value,
-      files: { [filename]: { content: buildRwdJson() } },
-    };
-    $('#cloudStatus').textContent = 'Saving…';
     try {
+      const token = $('#ghToken').value.trim();
+      if (!token) { toast('Token required', 'error'); return; }
+      localStorage.setItem('rodmanword:ghToken', token);
+      const gistId = $('#ghGistId').value.trim();
+      const filename = sanitizeFileName(docTitle.value) + '.rwd';
+      const body = {
+        description: 'RodmanWord — ' + docTitle.value,
+        files: { [filename]: { content: buildRwdJson() } },
+      };
+      $('#cloudStatus').textContent = 'Saving…';
       let json;
       if (gistId) {
         json = await gistRequest('PATCH', '/gists/' + gistId, token, body);
@@ -6417,13 +6444,13 @@ ${editor.innerHTML}
   });
 
   $('#cloudLoadBtn')?.addEventListener('click', async () => {
-    const token = $('#ghToken').value.trim();
-    const gistId = $('#ghGistId').value.trim();
-    if (!token || !gistId) { toast('Token and Gist ID required', 'error'); return; }
-    localStorage.setItem('rodmanword:ghToken', token);
-    localStorage.setItem('rodmanword:ghGistId', gistId);
-    $('#cloudStatus').textContent = 'Loading…';
     try {
+      const token = $('#ghToken').value.trim();
+      const gistId = $('#ghGistId').value.trim();
+      if (!token || !gistId) { toast('Token and Gist ID required', 'error'); return; }
+      localStorage.setItem('rodmanword:ghToken', token);
+      localStorage.setItem('rodmanword:ghGistId', gistId);
+      $('#cloudStatus').textContent = 'Loading…';
       const json = await gistRequest('GET', '/gists/' + gistId, token);
       const file = Object.values(json.files || {}).find((f) =>
         /\.rwd$/i.test(f.filename));
@@ -8671,6 +8698,9 @@ ${editor.innerHTML}
 
   function positionFloatBar(bar, anchor) {
     const r = anchor.getBoundingClientRect();
+    // If the anchor is detached or scrolled out, getBoundingClientRect
+    // returns 0×0 and the bar would jump to (0,0). Hide it instead.
+    if (r.width === 0 && r.height === 0) { bar.hidden = true; return; }
     // viewport-relative because float-bar is position:fixed
     const top = r.top - bar.offsetHeight - 6;
     bar.style.left = Math.max(8, r.left) + 'px';

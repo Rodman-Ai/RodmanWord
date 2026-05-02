@@ -58,9 +58,13 @@ self.addEventListener('fetch', (e) => {
       if (cached) return cached;
       if (req.mode === 'navigate' ||
           req.headers.get('accept')?.includes('text/html')) {
-        return caches.match('./index.html');
+        return caches.match('./index.html').then((idx) => idx || new Response(
+          'Offline and no cached copy available.',
+          { status: 503, statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain' } }
+        ));
       }
-      return cached;
+      return new Response('', { status: 504, statusText: 'Gateway Timeout' });
     }))
   );
 });
