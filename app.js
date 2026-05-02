@@ -6,10 +6,10 @@
   // service-worker cache version in sw.js should be kept in lock-step.
   // Date is the build date (the day the file was last edited).
   const RW_BUILD = {
-    version: '2.0.0',
-    date: '2026-05-01',
-    cache: 'rwd-v8',
-    label: 'RodmanWord 2.0',
+    version: '2.1.0',
+    date: '2026-05-02',
+    cache: 'rwd-v9',
+    label: 'RodmanWord 2.1',
   };
   window.RW_BUILD = RW_BUILD;
 

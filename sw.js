@@ -1,7 +1,14 @@
-// RodmanWord service worker — offline app shell cache
-// Keep this in sync with RW_BUILD.cache in app.js so the About
+// RodmanWord service worker — offline app shell cache.
+// Strategy: NETWORK-FIRST for everything, with cache fallback for
+// offline. Previously the SW served static assets cache-first which
+// meant CSS / JS updates lingered on users' devices for an extra
+// reload after each release. Network-first ensures every reload
+// fetches the freshest copy when online; the cache only serves when
+// the network is unreachable.
+//
+// Keep VERSION in sync with RW_BUILD.cache in app.js so the About
 // dialog displays the same version users actually have cached.
-const VERSION = 'rwd-v8';
+const VERSION = 'rwd-v9';
 const APP_SHELL = [
   './',
   './index.html',
@@ -35,28 +42,25 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Network-first for HTML so updates land; cache-first for static assets.
-  if (req.mode === 'navigate' ||
-      req.headers.get('accept')?.includes('text/html')) {
-    e.respondWith(
-      fetch(req).then((r) => {
+  // Network-first for ALL same-origin GETs. The cache is updated on
+  // every successful fetch so the next offline session can serve the
+  // most recent copy. If the network fails, fall back to whatever is
+  // in the cache; for navigations, fall back to the cached
+  // index.html so an offline reload still boots the app.
+  e.respondWith(
+    fetch(req).then((r) => {
+      if (r && r.ok) {
         const copy = r.clone();
         caches.open(VERSION).then((c) => c.put(req, copy)).catch(() => {});
-        return r;
-      }).catch(() => caches.match(req).then((r) => r || caches.match('./index.html')))
-    );
-    return;
-  }
-
-  e.respondWith(
-    caches.match(req).then((cached) =>
-      cached || fetch(req).then((r) => {
-        if (r.ok) {
-          const copy = r.clone();
-          caches.open(VERSION).then((c) => c.put(req, copy)).catch(() => {});
-        }
-        return r;
-      })
-    )
+      }
+      return r;
+    }).catch(() => caches.match(req).then((cached) => {
+      if (cached) return cached;
+      if (req.mode === 'navigate' ||
+          req.headers.get('accept')?.includes('text/html')) {
+        return caches.match('./index.html');
+      }
+      return cached;
+    }))
   );
 });

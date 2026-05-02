@@ -2521,31 +2521,40 @@ textarea {
   .app-subtitle { display: none; }
   .doc-title { max-width: 50vw; font-size: 13px; }
   .tab { padding: 8px 14px; font-size: 12px; }
-  /* On mobile we flatten the group / group-row hierarchy so every
-     control in the panel sits in the same wrapping flex row. That
-     packs the ribbon into ~3 rows of buttons instead of 6 — one
-     per logical group — at the cost of dropping group dividers
-     (which were already invisible because group-label is hidden).
-     If a panel really has more than three rows of controls, the
-     panel scrolls vertically. */
+  /* On mobile, ditch wrapping entirely: the ribbon becomes a single
+     horizontally-scrolling row of controls. That guarantees the
+     ribbon is exactly ONE row tall regardless of how many features
+     a tab has. Each .group internally also collapses to a single
+     row via display: contents on .group-row plus flex-direction:
+     row on .group. Group dividers stay as right borders. */
   .ribbon-panel {
-    min-height: 0;
-    padding: 4px;
-    flex-wrap: wrap;
-    align-content: flex-start;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    align-content: center;
     width: 100%;
     box-sizing: border-box;
-    overflow-x: hidden;
-    overflow-y: auto;
-    max-height: 168px;            /* ≈ 3 rows of ~56 px */
-    gap: 2px 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: 52px;            /* one row */
+    min-height: 0;
+    padding: 2px 4px;
+    gap: 0;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
   .group {
-    /* Treat the .group as if its children were panel children. */
-    display: contents;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    flex-shrink: 0;
+    border-right: 1px solid var(--ribbon-border);
+    padding: 2px 6px;
+    gap: 2px;
+    min-height: 0;
   }
   .group-row {
-    /* Same flattening for the inner row wrapper. */
+    /* Flatten so a group's buttons share the group's single row. */
     display: contents;
   }
   .group-label { display: none; }
@@ -2553,12 +2562,15 @@ textarea {
     height: 32px; min-width: 32px;
     padding: 2px 6px;
     font-size: 12px;
+    flex-shrink: 0;
   }
   .ribbon-btn.wide { min-width: 60px; padding: 2px 8px; }
-  .select { height: 28px; font-size: 12px; min-width: 64px; padding: 1px 6px; }
+  .select { height: 28px; font-size: 12px; min-width: 64px; padding: 1px 6px; flex-shrink: 0; }
   .select.sm { min-width: 50px; }
-  .control { font-size: 11px; gap: 2px; }
+  .control { font-size: 11px; gap: 2px; flex-shrink: 0; }
   .control.switch { font-size: 12px; }
+  /* Hide the multi-row container caps inherited from desktop. */
+  .ribbon { overflow: visible; }
   .ruler { display: none; }
   .page-wrap { padding: 0 8px; }
   .workspace-main { padding: 8px 0 24px; }
