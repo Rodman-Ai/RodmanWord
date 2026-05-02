@@ -1,6 +1,68 @@
-// RodmanWord pdfio.js — minimal PDF writer + text extractor.
-// No dependencies. Save uses PDF 1.4 with the standard 14 Type1 fonts.
-// Load extracts text from Tj/TJ operators (FlateDecode via DecompressionStream).
+// =============================================================
+//  RodmanWord pdfio.js — minimal PDF 1.4 writer + text extractor.
+//  No external dependencies.
+// =============================================================
+//
+//  WRITING
+//    PDF 1.4 with the standard 14 Type-1 fonts (Helvetica,
+//    Helvetica-Bold, Helvetica-Oblique, Helvetica-BoldOblique,
+//    Courier). No font embedding required — every PDF reader
+//    has these built in.
+//
+//    htmlToBlocks walks the editor DOM into a flat block list:
+//      h1..h6   styled headings
+//      p        body paragraphs
+//      ul/ol    bulleted / numbered list items
+//      pre      monospace blocks
+//      blockquote
+//      tr       single-row table strip (one block per row)
+//      hr       horizontal rules
+//      img      placeholder text (image embedding skipped to
+//               keep the writer small)
+//
+//    buildPdf lays the blocks out with manual word-wrapping
+//    against a Helvetica width table (HELV_WIDTH, sampled from
+//    the standard AFM), paginating on overflow. Each page emits
+//    a content stream with BT/Tf/Tj/ET text operators. Optional
+//    header / footer text is rendered above and below the body
+//    margin on every page; {page} / {pages} placeholders are
+//    substituted per-page so footers like "Page 1 of 4" work.
+//
+//    assemblePdf wraps the page tree, fonts, and content streams
+//    in a proper PDF document with a Catalog, Pages, Font, Info
+//    object set and the cross-reference table at the end.
+//
+//  READING
+//    extractStringsFromContent tokenises a content stream and
+//    pulls every literal `(...)` and hex `<...>` text fragment
+//    in order. Tj/TJ operators emit text; Td / TD with a large
+//    negative y-delta is interpreted as a paragraph break.
+//
+//    loadPdf walks the PDF byte stream looking for content
+//    streams (`<< /Filter /FlateDecode >> stream … endstream`),
+//    inflates them via the browser's DecompressionStream, and
+//    pulls text from each one. The result is wrapped in <p>
+//    elements split on the inferred paragraph breaks.
+//
+//  PUBLIC SURFACE
+//    window.RodmanPdf = {
+//      savePdf(html, opts)             → Blob (application/pdf)
+//        opts.pageW / pageH (points)   default Letter (612×792)
+//        opts.margin (points)          default 72
+//        opts.title                    PDF metadata title
+//        opts.header / footer (HTML)   optional running
+//                                      header / footer
+//      loadPdf(arrayBuffer)            → Promise<string>
+//                                         (HTML <p> chunks)
+//    }
+//
+//  CAVEATS
+//    Built-in Type-1 fonts cover Latin-1 only; characters
+//    outside that range render as `?`. The reader does best on
+//    PDFs whose text streams use simple WinAnsi encoding;
+//    custom-CMap PDFs (subset embedded fonts) won't extract
+//    cleanly without a much larger reader.
+// =============================================================
 (function () {
   'use strict';
 

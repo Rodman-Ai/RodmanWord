@@ -1,6 +1,69 @@
-// RodmanWord docx.js — minimal .docx (Office Open XML) reader & writer.
-// No dependencies. Reading uses native DecompressionStream for deflate.
-// Writing uses STORED entries (no compression) — Word/LibreOffice accept them.
+// =============================================================
+//  RodmanWord docx.js — minimal .docx (Office Open XML) reader &
+//  writer. No external dependencies.
+// =============================================================
+//
+//  WRITING
+//    A .docx file is a ZIP archive of XML parts. We use a
+//    hand-rolled ZIP writer with the STORED method (no
+//    compression) — Word, LibreOffice, and Pages all accept
+//    STORED-only archives. This avoids needing a DEFLATE
+//    encoder. CRC32 is computed in-line for each entry.
+//
+//    The package contains:
+//      [Content_Types].xml             content-type registry
+//      _rels/.rels                     root relationships
+//      word/document.xml               main body (paragraphs,
+//                                      runs, tables, hyperlinks)
+//      word/styles.xml                 heading + body styles
+//      word/_rels/document.xml.rels    hyperlink rels + header
+//                                      / footer references
+//      word/header1.xml (optional)     page header markup
+//      word/footer1.xml (optional)     page footer markup,
+//                                      with a real <w:fldSimple
+//                                      w:instr=" PAGE "> field
+//                                      where the user inserted
+//                                      a page-number marker
+//      docProps/core.xml               author, title, dates
+//
+//    htmlToWordML walks the editor DOM and emits paragraphs,
+//    headings (Heading1..6 styles), runs with bold/italic/u/strike/
+//    sub-sup/color/highlight/font, hyperlinks (with rels), tables
+//    (bordered), unordered + ordered lists, horizontal rules, and
+//    a placeholder for images (full image embedding requires
+//    drawingML and isn't worth the cost in a static-site app).
+//
+//  READING
+//    A .docx is a ZIP we have to inflate. Browsers ship native
+//    DecompressionStream('deflate-raw') support, so we read the
+//    central directory by walking back from the end-of-central-
+//    directory record and use the stream API to inflate each
+//    DEFLATE entry. STORED entries are sliced directly.
+//
+//    parseDocxXml interprets word/document.xml with namespace-
+//    aware DOM parsing. It recognises:
+//      <w:p>            → <p> (or <h1>..<h6> via w:pStyle)
+//      <w:r>            → <span> with bold/italic/u/strike/sub-
+//                          sup/colour/highlight/font from <w:rPr>
+//      <w:hyperlink>    → <a href> via the rId → target map from
+//                          word/_rels/document.xml.rels
+//      <w:tbl>/<w:tr>   → <table class="bordered">/<tr>/<td>
+//      <w:list>         → <ul>/<ol> (basic; numId-aware)
+//      w:jc             → text-align style
+//
+//  PUBLIC SURFACE
+//    window.RodmanDocx = {
+//      saveDocx(html, opts)            → Blob (.docx)
+//      loadDocx(arrayBuffer)           → Promise<string>
+//                                         (sanitised HTML)
+//      __buildZip(files)               internal — used by
+//      __readZip(arrayBuffer)            interop.js for ODT and
+//                                         EPUB packaging
+//    }
+//
+//  See ARCHITECTURE.md for the wider runtime model and
+//  FEATURES.md for which buttons trigger save/load.
+// =============================================================
 (function () {
   'use strict';
 

@@ -1,5 +1,42 @@
-// RodmanWord interop.js — extra import/export formats.
-// Reuses the ZIP writer from docx.js by lazy-loading window.RodmanDocx.
+// =============================================================
+//  RodmanWord interop.js — extra import / export formats.
+// =============================================================
+//
+//  This module ships the formats that aren't worth their own file:
+//
+//    Save (export)          Load (import)
+//    ────────────────       ───────────────
+//    .rtf  Rich Text         .rtf   minimal subset reader
+//    .odt  OpenDocument      .odt   reads content.xml from the zip
+//    .epub EPUB 3            .epub  concatenates every chapter
+//    .md   Markdown +YAML
+//    .adoc AsciiDoc
+//    .tex  LaTeX
+//
+//  ODT and EPUB are ZIP packages, so we reuse docx.js's
+//  internal ZIP writer / reader via the __buildZip / __readZip
+//  hooks exposed on window.RodmanDocx. RTF, Markdown, AsciiDoc,
+//  and LaTeX are plain-text walks of the editor DOM.
+//
+//  The Markdown live-preview pane (File → Markdown live preview)
+//  also goes through this module: htmlToMarkdownWithFrontMatter
+//  prepends a YAML --- block (title / author / date) when called
+//  with options, and falls back to the existing exporter when
+//  RodmanInterop is loaded after the editor.
+//
+//  PUBLIC SURFACE
+//    window.RodmanInterop = {
+//      rtfExport(html, title)          → string (.rtf body)
+//      odtExport(html, title)          → Uint8Array (.odt zip)
+//      epubExport(html, title)         → Uint8Array (.epub zip)
+//      mdExport(html, frontMatter)     → string (.md body)
+//      asciidocExport(html, title)     → string (.adoc)
+//      latexExport(html, title)        → string (.tex)
+//      rtfImport(rtfText)              → HTML
+//      odtImport(arrayBuffer)          → Promise<HTML>
+//      epubImport(arrayBuffer)         → Promise<HTML>
+//    }
+// =============================================================
 (function () {
   'use strict';
 
