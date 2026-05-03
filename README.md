@@ -1,7 +1,7 @@
 # RodmanWord
 
 A Microsoft Word–style document editor that runs entirely in the
-browser. No backend, no build step, no framework. Drop the four
+browser. No backend, no build step, no framework. Drop the static
 HTML / CSS / JS files on any static host and it works — including
 GitHub Pages.
 

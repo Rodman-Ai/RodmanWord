@@ -1557,6 +1557,17 @@ ${editor.innerHTML}
       closeBackstage();
       return;
     }
+    // Hand off RTF/ODT/EPUB to the extended listener registered in the
+    // FEATURE: Section L block — letting both listeners run for the
+    // same change event would race the FileReader fallback below
+    // against the awaited binary parsers and produce flicker / wrong
+    // final state.
+    if (/\.(rtf|odt|epub)$/i.test(file.name) ||
+        file.type === 'application/rtf' ||
+        file.type === 'application/vnd.oasis.opendocument.text' ||
+        file.type === 'application/epub+zip') {
+      return;
+    }
     if (/\.docx$/i.test(file.name) ||
         file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       try {
@@ -1623,13 +1634,16 @@ ${editor.innerHTML}
           const body = tmp.querySelector('body') || tmp;
           editor.innerHTML = sanitizeImported(body.innerHTML);
           docTitle.value = file.name.replace(/\.html?$/, '');
+        } else if (/\.md$/i.test(file.name)) {
+          editor.innerHTML = sanitizeImported(tinyMdToHtml(content));
+          docTitle.value = file.name.replace(/\.md$/i, '');
         } else {
           const escaped = escapeHtml(content)
             .split(/\n{2,}/)
             .map((p) => '<p>' + p.replace(/\n/g, '<br/>') + '</p>')
             .join('');
           editor.innerHTML = escaped;
-          docTitle.value = file.name.replace(/\.(txt|md)$/i, '');
+          docTitle.value = file.name.replace(/\.txt$/i, '');
         }
         addRecent(docTitle.value);
         queueAutosave();
@@ -1645,17 +1659,52 @@ ${editor.innerHTML}
   function sanitizeImported(html) {
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
-    tmp.querySelectorAll('script, style, link, meta').forEach((n) => n.remove());
+    // Strip elements that can execute or load active content. <base> is
+    // included because it would silently rewrite every relative URL in
+    // the document after insertion.
+    tmp.querySelectorAll(
+      'script, style, link, meta, iframe, frame, object, embed, applet, ' +
+      'base, source, track, video, audio'
+    ).forEach((n) => n.remove());
+    const URL_ATTRS = ['href', 'src', 'formaction', 'action',
+      'xlink:href', 'data', 'poster', 'background'];
+    const BAD_URL = /^\s*(javascript|vbscript|data:text\/html)/i;
+    const BAD_STYLE = /(?:javascript:|expression\s*\(|url\s*\(\s*['"]?\s*javascript:)/i;
     tmp.querySelectorAll('*').forEach((n) => {
       [...n.attributes].forEach((a) => {
-        if (a.name.startsWith('on')) n.removeAttribute(a.name);
-        if (a.name === 'href' && /^javascript:/i.test(a.value)) {
+        const name = a.name.toLowerCase();
+        if (name.startsWith('on')) { n.removeAttribute(a.name); return; }
+        if (name === 'srcdoc') { n.removeAttribute(a.name); return; }
+        if (URL_ATTRS.includes(name) && BAD_URL.test(a.value)) {
+          n.removeAttribute(a.name); return;
+        }
+        if (name === 'style' && BAD_STYLE.test(a.value)) {
           n.removeAttribute(a.name);
         }
       });
     });
     return tmp.innerHTML;
   }
+
+  // Tiny GitHub-flavoured-Markdown subset → HTML. Reused by the .md
+  // importer (file-picker change handler) and the live-preview pane
+  // (openMdPreview). Handles #/##/### headings, **bold**, *italic*,
+  // `code`, '- ' lists, and blank-line paragraph breaks. Anything more
+  // exotic falls through as plain text.
+  function tinyMdToHtml(md) {
+    md = md.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    md = md.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+    md = md.replace(/^## (.*)$/gm,  '<h2>$1</h2>');
+    md = md.replace(/^# (.*)$/gm,   '<h1>$1</h1>');
+    md = md.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+    md = md.replace(/\*([^*]+)\*/g,     '<i>$1</i>');
+    md = md.replace(/`([^`]+)`/g,       '<code>$1</code>');
+    md = md.replace(/^\- (.*)$/gm,      '<li>$1</li>');
+    md = md.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, (m) => '<ul>' + m + '</ul>');
+    md = md.replace(/\n\n+/g, '</p><p>');
+    return '<p>' + md + '</p>';
+  }
+  window.__rwdTinyMd = tinyMdToHtml;
 
   // ---------- Recent ----------
   function addRecent(title) {
@@ -3612,19 +3661,7 @@ ${editor.innerHTML}
       ta.value = window.__rwdHtmlToMarkdown(editor.innerHTML);
     } else { ta.value = editor.innerText; }
     function render() {
-      // Tiny Markdown → HTML
-      let md = ta.value;
-      md = md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      md = md.replace(/^### (.*)$/gm, '<h3>$1</h3>');
-      md = md.replace(/^## (.*)$/gm, '<h2>$1</h2>');
-      md = md.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-      md = md.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
-      md = md.replace(/\*([^*]+)\*/g, '<i>$1</i>');
-      md = md.replace(/`([^`]+)`/g, '<code>$1</code>');
-      md = md.replace(/^\- (.*)$/gm, '<li>$1</li>');
-      md = md.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, (m) => '<ul>' + m + '</ul>');
-      md = md.replace(/\n\n+/g, '</p><p>');
-      out.innerHTML = '<p>' + md + '</p>';
+      out.innerHTML = (window.__rwdTinyMd || ((s) => s))(ta.value);
     }
     ta.oninput = render;
     render();

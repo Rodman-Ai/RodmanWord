@@ -62,7 +62,8 @@ hacking on a phone via the GitHub web editor.
    header, body, footer. Open with `openModal($('#…Modal'))`, close
    with `closeModal(...)` or `data-close-modal`.
 6. **Toasts** for ephemeral feedback (`toast('msg', 'success' | 'error' | 'info')`).
-   Don't use `alert()`.
+   Prefer toasts over `alert()`. (Existing native call sites are
+   tracked for migration to `toast()` / `confirmDialog()`.)
 7. **Service worker**. If you add a new top-level JS / CSS / image
    file, add it to `APP_SHELL` in `sw.js` so it's pre-cached for
    offline use, and bump `VERSION`.
@@ -109,8 +110,9 @@ hacking on a phone via the GitHub web editor.
   2. If a tiny pure-JS implementation works (≤ ~500 lines), include
      it inline in the relevant module.
   3. CDN-loaded libraries are out — they break offline / PWA.
-- Native `prompt()` / `alert()` / `confirm()`. Use the toast / modal /
-  `confirmDialog()` patterns instead.
+- Native `prompt()` / `alert()` / `confirm()` in new code. Prefer the
+  `toast()` / modal / `confirmDialog()` helpers — existing call sites
+  are tracked for migration.
 
 ## Pull requests
 
